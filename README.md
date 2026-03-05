@@ -1,5 +1,10 @@
 # aistudio-session-compact
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+![Node >=20](https://img.shields.io/badge/node-%3E%3D20-339933)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Status: Active](https://img.shields.io/badge/status-active-success)
+
 CLI tool for exporting very long Google AI Studio sessions and creating compact continuation artifacts.
 
 ## Features

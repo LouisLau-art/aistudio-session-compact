@@ -2,6 +2,7 @@
   "name": "aistudio-session-compact",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Export and compact long Google AI Studio sessions for continuation in new chats.",
   "type": "module",
   "scripts": {

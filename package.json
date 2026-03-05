@@ -1,0 +1,25 @@
+{
+  "name": "aistudio-session-compact",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Export and compact long Google AI Studio sessions for continuation in new chats.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^0.12.0",
+    "commander": "^13.1.0",
+    "playwright": "^1.52.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

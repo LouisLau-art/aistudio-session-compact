@@ -2,9 +2,15 @@
 set -euo pipefail
 
 target_url="${1:-${AISTUDIO_URL:-}}"
+if [[ "${target_url}" == "-h" || "${target_url}" == "--help" ]]; then
+  echo "Usage: bash scripts/run-headless-pipeline.sh <aistudio-session-url> [extra pipeline args]"
+  echo "Example: bun run pipeline:headless -- \"https://aistudio.google.com/prompts/<id>\""
+  exit 0
+fi
+
 if [[ -z "${target_url}" ]]; then
   echo "Usage: bash scripts/run-headless-pipeline.sh <aistudio-session-url> [extra pipeline args]" >&2
-  echo "Example: npm run pipeline:headless -- \"https://aistudio.google.com/prompts/<id>\"" >&2
+  echo "Example: bun run pipeline:headless -- \"https://aistudio.google.com/prompts/<id>\"" >&2
   exit 1
 fi
 shift || true
@@ -27,7 +33,7 @@ CDP_HEADLESS=1 CDP_USER_DATA_DIR="${profile_dir}" \
   bash scripts/start-cdp-browser.sh chromium "${cdp_port}" "${target_url}"
 
 set +e
-npm run dev -- pipeline \
+bun run dev -- pipeline \
   --cdp-url "${cdp_url}" \
   --url-match "aistudio.google.com/prompts/" \
   --tab-index 0 \
@@ -48,7 +54,7 @@ Pipeline failed.
 If error says Google sign-in is required, refresh login once with the same profile:
   CDP_USER_DATA_DIR="${profile_dir}" bash scripts/start-cdp-browser.sh chromium ${cdp_port} "${target_url}"
 Then rerun:
-  npm run pipeline:headless -- "${target_url}"
+  bun run pipeline:headless -- "${target_url}"
 EOF
   exit "${rc}"
 fi

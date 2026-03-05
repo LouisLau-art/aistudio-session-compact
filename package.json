@@ -5,6 +5,7 @@
   "license": "MIT",
   "description": "Export and compact long Google AI Studio sessions for continuation in new chats.",
   "type": "module",
+  "packageManager": "bun@1.3.10",
   "scripts": {
     "dev": "tsx src/cli.ts",
     "cdp:start": "bash scripts/start-cdp-browser.sh",

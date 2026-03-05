@@ -46,13 +46,39 @@ python -m pip install paddlepaddle -i https://www.paddlepaddle.org.cn/packages/s
 python -m pip install paddleocr
 ```
 
-## Run Chrome with CDP
+## Run Browser with CDP
+
+Recommended (auto-detect Canary/Chromium/Chrome):
 
 ```bash
-google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-cdp
+npm run cdp:start
 ```
 
-If you need your existing profile/session, launch with your normal profile path and ensure security hygiene.
+Force Canary:
+
+```bash
+bash scripts/start-cdp-browser.sh canary 9222
+```
+
+Force Chromium:
+
+```bash
+bash scripts/start-cdp-browser.sh chromium 9222
+```
+
+Start CDP and open a specific AI Studio session URL immediately:
+
+```bash
+bash scripts/start-cdp-browser.sh canary 9222 "https://aistudio.google.com/prompts/1dZg0Xc4y74lOcj-TFbk84WlJTEZkhCSx"
+```
+
+Headless mode (for servers/CI):
+
+```bash
+CDP_HEADLESS=1 bash scripts/start-cdp-browser.sh chromium 9222
+```
+
+If CDP still cannot connect and logs show `Opening in existing browser session`, close all windows/processes of that browser and re-run. This is required when the browser was already started without `--remote-debugging-port`.
 
 ## Usage
 
@@ -67,6 +93,12 @@ One-shot pipeline:
 
 ```bash
 npm run dev -- pipeline --out ./out --provider auto --ocr-engine auto --ocr-lang eng+chi_sim
+```
+
+If URL matching fails (for example due login redirect), select a tab directly:
+
+```bash
+npm run dev -- pipeline --out ./out --tab-index 0 --provider none
 ```
 
 Force OCR-only mode (no multimodal API key):

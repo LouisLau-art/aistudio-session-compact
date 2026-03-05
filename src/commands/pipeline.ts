@@ -12,6 +12,7 @@ export interface PipelineOptions {
   outDir: string;
   cdpUrl: string;
   urlMatch: string;
+  tabIndex?: number;
   model: string;
   provider: VisionProvider;
   ocrEngine: OcrEngine;
@@ -35,6 +36,7 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
     maxScrollIterations: options.maxScrollIterations,
     stableRounds: options.stableRounds,
     scrollWaitMs: options.scrollWaitMs,
+    tabIndex: options.tabIndex,
   });
 
   const imagesOut = path.join(options.outDir, "images.enriched.jsonl");

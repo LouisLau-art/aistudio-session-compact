@@ -119,6 +119,7 @@ program
   .description("Run capture -> enrich-images -> compress -> handoff")
   .option("--cdp-url <url>", "Chrome CDP endpoint", "http://127.0.0.1:9222")
   .option("--url-match <text>", "URL match for target tab", "aistudio.google.com/prompts/")
+  .option("--tab-index <n>", "Pick a tab index explicitly", parseOptionalInt)
   .option("--out <dir>", "Output directory", "./out")
   .option("--provider <name>", "Vision provider: auto|doubao|gemini|none", parseVisionProvider, "auto")
   .option("--ocr-engine <name>", "OCR engine: auto|tesseract|paddle", parseOcrEngine, "auto")
@@ -138,6 +139,7 @@ program
       outDir: path.resolve(opts.out),
       cdpUrl: opts.cdpUrl,
       urlMatch: opts.urlMatch,
+      tabIndex: opts.tabIndex,
       model: opts.model,
       provider: opts.provider,
       ocrEngine: opts.ocrEngine,

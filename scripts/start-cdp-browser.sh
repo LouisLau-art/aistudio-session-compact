@@ -13,12 +13,12 @@ headless="${CDP_HEADLESS:-0}"
 pick_browser() {
   case "${browser}" in
     auto)
-      if command -v google-chrome-canary >/dev/null 2>&1; then
-        command -v google-chrome-canary
-      elif command -v chromium >/dev/null 2>&1; then
+      if command -v chromium >/dev/null 2>&1; then
         command -v chromium
       elif command -v chromium-browser >/dev/null 2>&1; then
         command -v chromium-browser
+      elif command -v google-chrome-canary >/dev/null 2>&1; then
+        command -v google-chrome-canary
       elif command -v google-chrome >/dev/null 2>&1; then
         command -v google-chrome
       else

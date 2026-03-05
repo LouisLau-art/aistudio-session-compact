@@ -48,22 +48,22 @@ python -m pip install paddleocr
 
 ## Run Browser with CDP
 
-Recommended (auto-detect Canary/Chromium/Chrome):
+Recommended (auto-detect Chromium/Canary/Chrome; Chromium preferred):
 
 ```bash
 npm run cdp:start
-```
-
-Force Canary:
-
-```bash
-bash scripts/start-cdp-browser.sh canary 9222
 ```
 
 Force Chromium:
 
 ```bash
 bash scripts/start-cdp-browser.sh chromium 9222
+```
+
+Force Canary (only if you explicitly need Canary):
+
+```bash
+bash scripts/start-cdp-browser.sh canary 9222
 ```
 
 Start CDP and open a specific AI Studio session URL immediately:

@@ -27,7 +27,7 @@ provider="${VISION_PROVIDER:-none}"
 ocr_engine="${OCR_ENGINE:-auto}"
 ocr_lang="${OCR_LANG:-eng+chi_sim}"
 python_bin="${OCR_PYTHON_BIN:-python3}"
-model="${VISION_MODEL:-${GEMINI_MODEL:-gemini-3-flash-preview}}"
+model="${VISION_MODEL:-vision-model}"
 
 CDP_HEADLESS=1 CDP_USER_DATA_DIR="${profile_dir}" \
   bash scripts/start-cdp-browser.sh chromium "${cdp_port}" "${target_url}"

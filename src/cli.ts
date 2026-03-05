@@ -48,15 +48,14 @@ program
   .description("Run OCR + visual summary for captured images")
   .requiredOption("--raw <path>", "Path to session.raw.ndjson")
   .option("--out <path>", "Output images.enriched.jsonl", "./out/images.enriched.jsonl")
-  .option("--provider <name>", "Vision provider: auto|doubao|gemini|none", parseVisionProvider, "auto")
+  .option("--provider <name>", "Vision provider: auto|doubao|none", parseVisionProvider, "auto")
   .option("--ocr-engine <name>", "OCR engine: auto|tesseract|paddle", parseOcrEngine, "auto")
-  .option("--model <model>", "Vision model id", process.env.VISION_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-3-flash-preview")
+  .option("--model <model>", "Vision model id", process.env.VISION_MODEL ?? "vision-model")
   .option("--disable-ocr", "Disable local Tesseract OCR", false)
   .option("--ocr-lang <lang>", "Tesseract OCR language", process.env.OCR_LANG ?? "eng+chi_sim")
   .option("--python-bin <path>", "Python binary for PaddleOCR sidecar", process.env.OCR_PYTHON_BIN ?? "python3")
   .option("--doubao-api-key <key>", "Doubao API key")
   .option("--doubao-base-url <url>", "Doubao/OpenAI-compatible base URL", process.env.DOUBAO_BASE_URL)
-  .option("--api-key <key>", "Gemini API key")
   .action(async (opts) => {
     const result = await runEnrichImages({
       rawPath: path.resolve(opts.raw),
@@ -69,7 +68,6 @@ program
       pythonBin: opts.pythonBin,
       doubaoApiKey: opts.doubaoApiKey,
       doubaoBaseUrl: opts.doubaoBaseUrl,
-      apiKey: opts.apiKey,
     });
 
     console.log(`Enriched image records: ${result.count}`);
@@ -78,21 +76,17 @@ program
 
 program
   .command("compress")
-  .description("Compress captured session into context capsule")
+  .description("Compress captured session into context capsule (heuristic)")
   .requiredOption("--raw <path>", "Path to session.raw.ndjson")
   .option("--images <path>", "Path to images.enriched.jsonl")
   .option("--out <path>", "Output context_capsule.json", "./out/context_capsule.json")
-  .option("--model <model>", "Gemini model", process.env.GEMINI_MODEL ?? "gemini-3-flash-preview")
   .option("--chunk-chars <n>", "Chunk size by chars", parseIntValue, 20000)
-  .option("--api-key <key>", "Gemini API key")
   .action(async (opts) => {
     const result = await runCompress({
       rawPath: path.resolve(opts.raw),
       imagesPath: opts.images ? path.resolve(opts.images) : undefined,
       outPath: path.resolve(opts.out),
-      model: opts.model,
       chunkChars: opts.chunkChars,
-      apiKey: opts.apiKey,
     });
 
     console.log(`Capsule created with ${result.capsule.meta.chunkCount} chunks`);
@@ -121,15 +115,14 @@ program
   .option("--url-match <text>", "URL match for target tab", "aistudio.google.com/prompts/")
   .option("--tab-index <n>", "Pick a tab index explicitly", parseOptionalInt)
   .option("--out <dir>", "Output directory", "./out")
-  .option("--provider <name>", "Vision provider: auto|doubao|gemini|none", parseVisionProvider, "auto")
+  .option("--provider <name>", "Vision provider: auto|doubao|none", parseVisionProvider, "auto")
   .option("--ocr-engine <name>", "OCR engine: auto|tesseract|paddle", parseOcrEngine, "auto")
-  .option("--model <model>", "Vision/compression model id", process.env.VISION_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-3-flash-preview")
+  .option("--model <model>", "Vision model id", process.env.VISION_MODEL ?? "vision-model")
   .option("--disable-ocr", "Disable local Tesseract OCR", false)
   .option("--ocr-lang <lang>", "Tesseract OCR language", process.env.OCR_LANG ?? "eng+chi_sim")
   .option("--python-bin <path>", "Python binary for PaddleOCR sidecar", process.env.OCR_PYTHON_BIN ?? "python3")
   .option("--doubao-api-key <key>", "Doubao API key")
   .option("--doubao-base-url <url>", "Doubao/OpenAI-compatible base URL", process.env.DOUBAO_BASE_URL)
-  .option("--api-key <key>", "Gemini API key")
   .option("--chunk-chars <n>", "Chunk size by chars", parseIntValue, 20000)
   .option("--max-scroll-iterations <n>", "Max loading loops", parseIntValue, 220)
   .option("--stable-rounds <n>", "Stop after N stable rounds", parseIntValue, 6)
@@ -148,7 +141,6 @@ program
       pythonBin: opts.pythonBin,
       doubaoApiKey: opts.doubaoApiKey,
       doubaoBaseUrl: opts.doubaoBaseUrl,
-      geminiApiKey: opts.apiKey,
       chunkChars: opts.chunkChars,
       maxScrollIterations: opts.maxScrollIterations,
       stableRounds: opts.stableRounds,
@@ -177,7 +169,7 @@ function parseOptionalInt(value: string): number {
 }
 
 function parseVisionProvider(value: string): VisionProvider {
-  if (value === "auto" || value === "doubao" || value === "gemini" || value === "none") {
+  if (value === "auto" || value === "doubao" || value === "none") {
     return value;
   }
   throw new Error(`Invalid vision provider: ${value}`);

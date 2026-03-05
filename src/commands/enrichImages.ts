@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { callDoubaoVision } from "../lib/doubao.js";
-import { callGemini } from "../lib/gemini.js";
 import {
   resolveOcrEngine,
   runPaddleOcr,
@@ -13,8 +12,8 @@ import {
 import { ensureDir, readNdjson, writeNdjson } from "../lib/fs.js";
 import type { ImageEnrichment, SessionTurn } from "../types.js";
 
-export type VisionProvider = "auto" | "doubao" | "gemini" | "none";
-export type ResolvedVisionProvider = "doubao" | "gemini" | "none";
+export type VisionProvider = "auto" | "doubao" | "none";
+export type ResolvedVisionProvider = "doubao" | "none";
 
 export interface EnrichImagesOptions {
   rawPath: string;
@@ -25,7 +24,6 @@ export interface EnrichImagesOptions {
   enableOcr?: boolean;
   ocrLang?: string;
   pythonBin?: string;
-  apiKey?: string;
   doubaoApiKey?: string;
   doubaoBaseUrl?: string;
 }
@@ -52,7 +50,6 @@ export function buildImagePrompt(contextText: string, ocrHint?: string): string 
 export function selectVisionProvider(input: {
   provider: VisionProvider;
   doubaoApiKey?: string;
-  geminiApiKey?: string;
 }): ResolvedVisionProvider {
   if (input.provider === "none") {
     return "none";
@@ -62,27 +59,18 @@ export function selectVisionProvider(input: {
     return input.doubaoApiKey ? "doubao" : "none";
   }
 
-  if (input.provider === "gemini") {
-    return input.geminiApiKey ? "gemini" : "none";
-  }
-
   if (input.doubaoApiKey) {
     return "doubao";
-  }
-  if (input.geminiApiKey) {
-    return "gemini";
   }
   return "none";
 }
 
 export async function runEnrichImages(options: EnrichImagesOptions): Promise<{ outPath: string; count: number }> {
   const turns = await readNdjson<SessionTurn>(options.rawPath);
-  const geminiApiKey = options.apiKey ?? process.env.GEMINI_API_KEY;
   const doubaoApiKey = options.doubaoApiKey ?? process.env.DOUBAO_API_KEY;
   const provider = selectVisionProvider({
     provider: options.provider ?? "auto",
     doubaoApiKey,
-    geminiApiKey,
   });
   const ocrEngine = options.ocrEngine ?? "auto";
   const ocrLang = options.ocrLang ?? process.env.OCR_LANG ?? "eng+chi_sim";
@@ -159,30 +147,14 @@ export async function runEnrichImages(options: EnrichImagesOptions): Promise<{ o
         const mimeType = guessMimeType(image.localPath);
         const contextText = turn.text;
         const prompt = buildImagePrompt(contextText, ocrText);
-        const response =
-          provider === "doubao"
-            ? await callDoubaoVision({
-                model: options.model,
-                apiKey: doubaoApiKey ?? "",
-                baseUrl: options.doubaoBaseUrl ?? process.env.DOUBAO_BASE_URL,
-                prompt,
-                imageBase64: buffer.toString("base64"),
-                mimeType,
-              })
-            : await callGemini({
-                model: options.model,
-                apiKey: geminiApiKey ?? "",
-                responseMimeType: "application/json",
-                parts: [
-                  { text: prompt },
-                  {
-                    inline_data: {
-                      mime_type: mimeType,
-                      data: buffer.toString("base64"),
-                    },
-                  },
-                ],
-              });
+        const response = await callDoubaoVision({
+          model: options.model,
+          apiKey: doubaoApiKey ?? "",
+          baseUrl: options.doubaoBaseUrl ?? process.env.DOUBAO_BASE_URL,
+          prompt,
+          imageBase64: buffer.toString("base64"),
+          mimeType,
+        });
 
         const parsed = parseImageJson(response.text);
         results.push({

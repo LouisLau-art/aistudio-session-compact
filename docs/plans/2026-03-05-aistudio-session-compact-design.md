@@ -33,7 +33,7 @@ The tool is a Node.js + TypeScript CLI with four pipeline stages:
 
 ## Image Strategy
 - Keep image linkage even when OCR fails
-- For each image file, call Gemini multimodal model for:
+- For each image file, call Doubao multimodal model for:
   - OCR text
   - visual summary
   - inferred relevance to nearby turn text
@@ -58,5 +58,5 @@ The tool is a Node.js + TypeScript CLI with four pipeline stages:
 
 ## Security
 - No credentials stored by default
-- Optional API key via environment variable (`GEMINI_API_KEY`)
+- Optional API key via environment variable (`DOUBAO_API_KEY`)
 - Local artifacts only; no implicit upload besides model API calls user configured

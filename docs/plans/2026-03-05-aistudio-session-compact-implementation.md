@@ -6,7 +6,7 @@
 
 **Architecture:** A TypeScript CLI with explicit subcommands for `capture`, `enrich-images`, `compress`, and `handoff`, connected by stable JSON/NDJSON contracts. Each stage is resumable and writes auditable artifacts for debugging and trust.
 
-**Tech Stack:** Node.js 20+, TypeScript, Playwright (CDP), @google/genai, Zod, Vitest.
+**Tech Stack:** Bun, TypeScript, Playwright (CDP), Doubao-compatible vision endpoint, Zod, Vitest.
 
 ---
 
@@ -66,7 +66,7 @@ Expected: PASS.
 
 **Files:**
 - Create: `src/commands/enrichImages.ts`
-- Create: `src/lib/gemini.ts`
+- Create: `src/lib/doubao.ts`
 - Test: `tests/enrich.prompt.test.ts`
 
 **Step 1: Write the failing test**

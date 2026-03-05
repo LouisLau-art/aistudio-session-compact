@@ -21,7 +21,6 @@ export interface PipelineOptions {
   pythonBin?: string;
   doubaoApiKey?: string;
   doubaoBaseUrl?: string;
-  geminiApiKey?: string;
   chunkChars: number;
   maxScrollIterations: number;
   stableRounds: number;
@@ -53,14 +52,12 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
     pythonBin: options.pythonBin,
     doubaoApiKey: options.doubaoApiKey,
     doubaoBaseUrl: options.doubaoBaseUrl,
-    apiKey: options.geminiApiKey,
   });
 
   const compress = await runCompress({
     rawPath: capture.rawPath,
     imagesPath: imagesOut,
     outPath: compressionOut,
-    model: options.model,
     chunkChars: options.chunkChars,
   });
 

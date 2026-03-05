@@ -3,11 +3,10 @@ import { describe, expect, it } from "vitest";
 import { buildImagePrompt, selectVisionProvider } from "../src/commands/enrichImages.js";
 
 describe("selectVisionProvider", () => {
-  it("prefers doubao over gemini in auto mode", () => {
+  it("uses doubao when key exists in auto mode", () => {
     const provider = selectVisionProvider({
       provider: "auto",
       doubaoApiKey: "dkey",
-      geminiApiKey: "gkey",
     });
     expect(provider).toBe("doubao");
   });
@@ -16,7 +15,6 @@ describe("selectVisionProvider", () => {
     const provider = selectVisionProvider({
       provider: "auto",
       doubaoApiKey: undefined,
-      geminiApiKey: undefined,
     });
     expect(provider).toBe("none");
   });
@@ -25,7 +23,6 @@ describe("selectVisionProvider", () => {
     const provider = selectVisionProvider({
       provider: "none",
       doubaoApiKey: "dkey",
-      geminiApiKey: "gkey",
     });
     expect(provider).toBe("none");
   });

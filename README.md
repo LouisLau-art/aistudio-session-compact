@@ -14,7 +14,7 @@ CLI tool for exporting very long Google AI Studio sessions and creating compact 
 
 - Capture AI Studio session content from an already logged-in Chrome tab via CDP
 - Extract message text and image references
-- Enrich images with OCR-first strategy (`tesseract`) + optional multimodal summaries (`doubao`/`gemini`)
+- Enrich images with OCR-first strategy (`tesseract`) + optional multimodal summaries (`doubao`)
 - Hierarchically compress long sessions into a `context_capsule.json`
 - Generate `handoff.md` and `resume_prompt.md` for seamless continuation
 
@@ -23,7 +23,6 @@ CLI tool for exporting very long Google AI Studio sessions and creating compact 
 - Bun 1.3+
 - Node.js 20+ (optional compatibility path)
 - Chrome/Chromium running with remote debugging port enabled
-- Optional: `GEMINI_API_KEY` for multimodal enrichment and model-based compression
 - Optional: `DOUBAO_API_KEY` for multimodal enrichment (preferred in `auto` mode)
 - Local OCR: `tesseract` with language packs (`eng`, `chi_sim`)
 
@@ -71,7 +70,7 @@ bash scripts/start-cdp-browser.sh canary 9222
 Start CDP and open a specific AI Studio session URL immediately:
 
 ```bash
-bash scripts/start-cdp-browser.sh canary 9222 "https://aistudio.google.com/prompts/1dZg0Xc4y74lOcj-TFbk84WlJTEZkhCSx"
+bash scripts/start-cdp-browser.sh chromium 9222 "https://aistudio.google.com/prompts/1dZg0Xc4y74lOcj-TFbk84WlJTEZkhCSx"
 ```
 
 Headless mode (for servers/CI):

@@ -1,0 +1,2 @@
+{"id":"t-000001","order":0,"role":"user","text":"我想把超长会话迁移到新session。","sourceUrl":"https://aistudio.google.com/prompts/demo","images":[]}
+{"id":"t-000002","order":1,"role":"model","text":"建议使用分层压缩与上下文胶囊。","sourceUrl":"https://aistudio.google.com/prompts/demo","images":[]}

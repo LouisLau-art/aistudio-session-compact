@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "createdAt": "2026-03-05T00:00:00.000Z",
+    "rawPath": "examples/sample.raw.ndjson",
+    "turnCount": 2,
+    "imageCount": 0,
+    "chunkCount": 1,
+    "modelUsed": "heuristic",
+    "mode": "heuristic"
+  },
+  "sessionSummary": "讨论目标是将超长会话迁移到新session，并保持上下文连续性。",
+  "goals": ["迁移超长会话", "保持上下文连续性"],
+  "decisions": [{"decision":"使用分层压缩","evidenceTurnIds":["t-000002"]}],
+  "constraints": ["输入可能达到90万tokens"],
+  "openQuestions": ["图片语义如何自动抽取"],
+  "todos": ["实现CDP抓取"],
+  "keyFacts": [{"fact":"用户在AI Studio中进行长会话","evidenceTurnIds":["t-000001"]}],
+  "timeline": [
+    {"turnId":"t-000001","role":"user","summary":"我想把超长会话迁移到新session。"},
+    {"turnId":"t-000002","role":"model","summary":"建议使用分层压缩与上下文胶囊。"}
+  ],
+  "resumeBrief": "继续实现自动抓取+压缩流水线。"
+}

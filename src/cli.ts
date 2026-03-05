@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { runCapture } from "./commands/capture.js";
 import { runCompress } from "./commands/compress.js";
+import type { VisionProvider } from "./commands/enrichImages.js";
 import { runEnrichImages } from "./commands/enrichImages.js";
 import { runHandoff } from "./commands/handoff.js";
 import { runPipeline } from "./commands/pipeline.js";
@@ -46,13 +47,23 @@ program
   .description("Run OCR + visual summary for captured images")
   .requiredOption("--raw <path>", "Path to session.raw.ndjson")
   .option("--out <path>", "Output images.enriched.jsonl", "./out/images.enriched.jsonl")
-  .option("--model <model>", "Gemini model", process.env.GEMINI_MODEL ?? "gemini-3-flash-preview")
+  .option("--provider <name>", "Vision provider: auto|doubao|gemini|none", parseVisionProvider, "auto")
+  .option("--model <model>", "Vision model id", process.env.VISION_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-3-flash-preview")
+  .option("--disable-ocr", "Disable local Tesseract OCR", false)
+  .option("--ocr-lang <lang>", "Tesseract OCR language", process.env.OCR_LANG ?? "eng+chi_sim")
+  .option("--doubao-api-key <key>", "Doubao API key")
+  .option("--doubao-base-url <url>", "Doubao/OpenAI-compatible base URL", process.env.DOUBAO_BASE_URL)
   .option("--api-key <key>", "Gemini API key")
   .action(async (opts) => {
     const result = await runEnrichImages({
       rawPath: path.resolve(opts.raw),
       outPath: path.resolve(opts.out),
       model: opts.model,
+      provider: opts.provider,
+      enableOcr: !opts.disableOcr,
+      ocrLang: opts.ocrLang,
+      doubaoApiKey: opts.doubaoApiKey,
+      doubaoBaseUrl: opts.doubaoBaseUrl,
       apiKey: opts.apiKey,
     });
 
@@ -104,7 +115,13 @@ program
   .option("--cdp-url <url>", "Chrome CDP endpoint", "http://127.0.0.1:9222")
   .option("--url-match <text>", "URL match for target tab", "aistudio.google.com/prompts/")
   .option("--out <dir>", "Output directory", "./out")
-  .option("--model <model>", "Gemini model", process.env.GEMINI_MODEL ?? "gemini-3-flash-preview")
+  .option("--provider <name>", "Vision provider: auto|doubao|gemini|none", parseVisionProvider, "auto")
+  .option("--model <model>", "Vision/compression model id", process.env.VISION_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-3-flash-preview")
+  .option("--disable-ocr", "Disable local Tesseract OCR", false)
+  .option("--ocr-lang <lang>", "Tesseract OCR language", process.env.OCR_LANG ?? "eng+chi_sim")
+  .option("--doubao-api-key <key>", "Doubao API key")
+  .option("--doubao-base-url <url>", "Doubao/OpenAI-compatible base URL", process.env.DOUBAO_BASE_URL)
+  .option("--api-key <key>", "Gemini API key")
   .option("--chunk-chars <n>", "Chunk size by chars", parseIntValue, 20000)
   .option("--max-scroll-iterations <n>", "Max loading loops", parseIntValue, 220)
   .option("--stable-rounds <n>", "Stop after N stable rounds", parseIntValue, 6)
@@ -115,6 +132,12 @@ program
       cdpUrl: opts.cdpUrl,
       urlMatch: opts.urlMatch,
       model: opts.model,
+      provider: opts.provider,
+      enableOcr: !opts.disableOcr,
+      ocrLang: opts.ocrLang,
+      doubaoApiKey: opts.doubaoApiKey,
+      doubaoBaseUrl: opts.doubaoBaseUrl,
+      geminiApiKey: opts.apiKey,
       chunkChars: opts.chunkChars,
       maxScrollIterations: opts.maxScrollIterations,
       stableRounds: opts.stableRounds,
@@ -140,4 +163,11 @@ function parseIntValue(value: string): number {
 
 function parseOptionalInt(value: string): number {
   return parseIntValue(value);
+}
+
+function parseVisionProvider(value: string): VisionProvider {
+  if (value === "auto" || value === "doubao" || value === "gemini" || value === "none") {
+    return value;
+  }
+  throw new Error(`Invalid vision provider: ${value}`);
 }

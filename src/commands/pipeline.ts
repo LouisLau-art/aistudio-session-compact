@@ -3,6 +3,7 @@ import path from "node:path";
 import { runCapture } from "./capture.js";
 import { runCompress } from "./compress.js";
 import { runEnrichImages } from "./enrichImages.js";
+import type { VisionProvider } from "./enrichImages.js";
 import { runHandoff } from "./handoff.js";
 import { writeJson } from "../lib/fs.js";
 
@@ -11,6 +12,12 @@ export interface PipelineOptions {
   cdpUrl: string;
   urlMatch: string;
   model: string;
+  provider: VisionProvider;
+  enableOcr: boolean;
+  ocrLang: string;
+  doubaoApiKey?: string;
+  doubaoBaseUrl?: string;
+  geminiApiKey?: string;
   chunkChars: number;
   maxScrollIterations: number;
   stableRounds: number;
@@ -34,6 +41,12 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
     rawPath: capture.rawPath,
     outPath: imagesOut,
     model: options.model,
+    provider: options.provider,
+    enableOcr: options.enableOcr,
+    ocrLang: options.ocrLang,
+    doubaoApiKey: options.doubaoApiKey,
+    doubaoBaseUrl: options.doubaoBaseUrl,
+    apiKey: options.geminiApiKey,
   });
 
   const compress = await runCompress({

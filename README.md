@@ -11,7 +11,7 @@ CLI tool for exporting very long Google AI Studio sessions and creating compact 
 
 - Capture AI Studio session content from an already logged-in Chrome tab via CDP
 - Extract message text and image references
-- Enrich images with OCR + visual summaries (Gemini multimodal)
+- Enrich images with OCR-first strategy (`tesseract`) + optional multimodal summaries (`doubao`/`gemini`)
 - Hierarchically compress long sessions into a `context_capsule.json`
 - Generate `handoff.md` and `resume_prompt.md` for seamless continuation
 
@@ -20,6 +20,8 @@ CLI tool for exporting very long Google AI Studio sessions and creating compact 
 - Node.js 20+
 - Chrome/Chromium running with remote debugging port enabled
 - Optional: `GEMINI_API_KEY` for multimodal enrichment and model-based compression
+- Optional: `DOUBAO_API_KEY` for multimodal enrichment (preferred in `auto` mode)
+- Local OCR: `tesseract` with language packs (`eng`, `chi_sim`)
 
 ## Install
 
@@ -39,7 +41,7 @@ If you need your existing profile/session, launch with your normal profile path 
 
 ```bash
 npm run dev -- capture --out ./out
-npm run dev -- enrich-images --raw ./out/session.raw.ndjson --out ./out/images.enriched.jsonl
+npm run dev -- enrich-images --raw ./out/session.raw.ndjson --out ./out/images.enriched.jsonl --provider auto --ocr-lang eng+chi_sim
 npm run dev -- compress --raw ./out/session.raw.ndjson --images ./out/images.enriched.jsonl --out ./out/context_capsule.json
 npm run dev -- handoff --capsule ./out/context_capsule.json --out-dir ./out
 ```
@@ -47,7 +49,21 @@ npm run dev -- handoff --capsule ./out/context_capsule.json --out-dir ./out
 One-shot pipeline:
 
 ```bash
-npm run dev -- pipeline --out ./out
+npm run dev -- pipeline --out ./out --provider auto --ocr-lang eng+chi_sim
+```
+
+Force OCR-only mode (no multimodal API key):
+
+```bash
+npm run dev -- enrich-images --raw ./out/session.raw.ndjson --provider none
+```
+
+Use Doubao vision explicitly:
+
+```bash
+export DOUBAO_API_KEY="your_doubao_key"
+export VISION_MODEL="your_doubao_vision_model_id"
+npm run dev -- enrich-images --raw ./out/session.raw.ndjson --provider doubao
 ```
 
 ## Outputs
@@ -63,4 +79,4 @@ npm run dev -- pipeline --out ./out
 
 - AI Studio DOM can evolve; extractor is selector-heuristic with fallback.
 - Image extraction is best effort; failures are recorded, not fatal.
-- For very large chats, prefer model-assisted compression with chunking.
+- For very large chats, prefer OCR-first + selective multimodal enhancement for cost control.

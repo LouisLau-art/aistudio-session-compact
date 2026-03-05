@@ -1,18 +1,28 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { callDoubaoVision } from "../lib/doubao.js";
 import { callGemini } from "../lib/gemini.js";
+import { runTesseractOcr } from "../lib/ocr.js";
 import { ensureDir, readNdjson, writeNdjson } from "../lib/fs.js";
 import type { ImageEnrichment, SessionTurn } from "../types.js";
+
+export type VisionProvider = "auto" | "doubao" | "gemini" | "none";
+export type ResolvedVisionProvider = "doubao" | "gemini" | "none";
 
 export interface EnrichImagesOptions {
   rawPath: string;
   outPath: string;
   model: string;
+  provider?: VisionProvider;
+  enableOcr?: boolean;
+  ocrLang?: string;
   apiKey?: string;
+  doubaoApiKey?: string;
+  doubaoBaseUrl?: string;
 }
 
-export function buildImagePrompt(contextText: string): string {
+export function buildImagePrompt(contextText: string, ocrHint?: string): string {
   return [
     "Analyze this conversation image and return strict JSON with keys:",
     "ocr_text, visual_summary, relevance_to_context.",
@@ -23,18 +33,51 @@ export function buildImagePrompt(contextText: string): string {
     "- relevance_to_context: how image affects nearby discussion",
     "- no markdown, JSON only",
     "",
+    "OCR hint (from local OCR, may be noisy):",
+    ocrHint && ocrHint.trim().length ? ocrHint.slice(0, 3000) : "(none)",
+    "",
     "Nearby conversation context:",
     contextText.slice(0, 4000),
   ].join("\n");
 }
 
+export function selectVisionProvider(input: {
+  provider: VisionProvider;
+  doubaoApiKey?: string;
+  geminiApiKey?: string;
+}): ResolvedVisionProvider {
+  if (input.provider === "none") {
+    return "none";
+  }
+
+  if (input.provider === "doubao") {
+    return input.doubaoApiKey ? "doubao" : "none";
+  }
+
+  if (input.provider === "gemini") {
+    return input.geminiApiKey ? "gemini" : "none";
+  }
+
+  if (input.doubaoApiKey) {
+    return "doubao";
+  }
+  if (input.geminiApiKey) {
+    return "gemini";
+  }
+  return "none";
+}
+
 export async function runEnrichImages(options: EnrichImagesOptions): Promise<{ outPath: string; count: number }> {
   const turns = await readNdjson<SessionTurn>(options.rawPath);
-  const apiKey = options.apiKey ?? process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is required for enrich-images command");
-  }
+  const geminiApiKey = options.apiKey ?? process.env.GEMINI_API_KEY;
+  const doubaoApiKey = options.doubaoApiKey ?? process.env.DOUBAO_API_KEY;
+  const provider = selectVisionProvider({
+    provider: options.provider ?? "auto",
+    doubaoApiKey,
+    geminiApiKey,
+  });
+  const ocrLang = options.ocrLang ?? process.env.OCR_LANG ?? "eng+chi_sim";
+  const enableOcr = options.enableOcr ?? true;
 
   await ensureDir(path.dirname(options.outPath));
 
@@ -54,25 +97,64 @@ export async function runEnrichImages(options: EnrichImagesOptions): Promise<{ o
         continue;
       }
 
+      let ocrText = "";
+      let ocrError = "";
+
+      if (enableOcr) {
+        try {
+          ocrText = await runTesseractOcr(image.localPath, ocrLang);
+        } catch (error) {
+          ocrError = error instanceof Error ? error.message : String(error);
+        }
+      }
+
+      if (provider === "none") {
+        const visualSummary = image.alt ? `Image alt text: ${image.alt}` : undefined;
+        const status: ImageEnrichment["status"] = ocrText || visualSummary ? "ok" : "skipped";
+        results.push({
+          imageId: image.id,
+          messageId: image.messageId,
+          src: image.src,
+          localPath: image.localPath,
+          status,
+          ocrText: ocrText || undefined,
+          visualSummary,
+          error: [ocrError, "no multimodal provider key; OCR-first mode only"]
+            .filter(Boolean)
+            .join(" | "),
+        });
+        continue;
+      }
+
       try {
         const buffer = await readFile(image.localPath);
         const mimeType = guessMimeType(image.localPath);
         const contextText = turn.text;
-
-        const response = await callGemini({
-          model: options.model,
-          apiKey,
-          responseMimeType: "application/json",
-          parts: [
-            { text: buildImagePrompt(contextText) },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: buffer.toString("base64"),
-              },
-            },
-          ],
-        });
+        const prompt = buildImagePrompt(contextText, ocrText);
+        const response =
+          provider === "doubao"
+            ? await callDoubaoVision({
+                model: options.model,
+                apiKey: doubaoApiKey ?? "",
+                baseUrl: options.doubaoBaseUrl ?? process.env.DOUBAO_BASE_URL,
+                prompt,
+                imageBase64: buffer.toString("base64"),
+                mimeType,
+              })
+            : await callGemini({
+                model: options.model,
+                apiKey: geminiApiKey ?? "",
+                responseMimeType: "application/json",
+                parts: [
+                  { text: prompt },
+                  {
+                    inline_data: {
+                      mime_type: mimeType,
+                      data: buffer.toString("base64"),
+                    },
+                  },
+                ],
+              });
 
         const parsed = parseImageJson(response.text);
         results.push({
@@ -81,10 +163,11 @@ export async function runEnrichImages(options: EnrichImagesOptions): Promise<{ o
           src: image.src,
           localPath: image.localPath,
           status: "ok",
-          ocrText: parsed.ocr_text,
+          ocrText: parsed.ocr_text || ocrText,
           visualSummary: parsed.visual_summary,
           relevanceToConversation: parsed.relevance_to_context,
           rawResponse: response.text,
+          error: ocrError || undefined,
         });
       } catch (error) {
         results.push({
@@ -93,7 +176,10 @@ export async function runEnrichImages(options: EnrichImagesOptions): Promise<{ o
           src: image.src,
           localPath: image.localPath,
           status: "error",
-          error: error instanceof Error ? error.message : String(error),
+          ocrText: ocrText || undefined,
+          error: [error instanceof Error ? error.message : String(error), ocrError]
+            .filter(Boolean)
+            .join(" | "),
         });
       }
     }

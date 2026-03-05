@@ -1,6 +1,7 @@
 node_modules/
 dist/
 out/
+.venv-ocr*/
 .env
 .DS_Store
 *.log

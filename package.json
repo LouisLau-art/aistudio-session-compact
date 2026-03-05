@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "tsx src/cli.ts",
     "cdp:start": "bash scripts/start-cdp-browser.sh",
+    "pipeline:headless": "bash scripts/run-headless-pipeline.sh",
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "lint": "tsc -p tsconfig.json --noEmit"

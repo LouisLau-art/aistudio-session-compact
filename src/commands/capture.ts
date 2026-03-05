@@ -4,6 +4,7 @@ import { chromium, type BrowserContext, type Page } from "playwright";
 import type { BrowserExtractedTurn } from "../lib/extract.js";
 import { fallbackTextTurn, normalizeBrowserTurns } from "../lib/extract.js";
 import { ensureDir, writeJson, writeNdjson } from "../lib/fs.js";
+import { assertAistudioSessionReady } from "../lib/sessionGuard.js";
 import type { CaptureRunReport, SessionTurn } from "../types.js";
 
 export interface CaptureOptions {
@@ -39,6 +40,7 @@ export async function runCapture(options: CaptureOptions): Promise<{
   const browser = await chromium.connectOverCDP(options.cdpUrl);
   const page = await findTargetPage(browser.contexts(), options.urlMatch, options.tabIndex);
   const sourceUrl = page.url();
+  assertAistudioSessionReady(sourceUrl);
 
   await autoScrollLoad(page, options.maxScrollIterations, options.stableRounds, options.scrollWaitMs);
 
@@ -49,6 +51,7 @@ export async function runCapture(options: CaptureOptions): Promise<{
     const fullText = await page.evaluate(() => document.body?.innerText ?? "");
     turns = fallbackTextTurn(fullText, sourceUrl);
   }
+  assertAistudioSessionReady(sourceUrl, turns[0]?.text);
 
   const savedImages = await saveVisibleImages(page, imagesDir);
   attachSavedImages(turns, savedImages);

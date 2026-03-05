@@ -80,6 +80,29 @@ CDP_HEADLESS=1 bash scripts/start-cdp-browser.sh chromium 9222
 
 If CDP still cannot connect and logs show `Opening in existing browser session`, close all windows/processes of that browser and re-run. This is required when the browser was already started without `--remote-debugging-port`.
 
+## Headless CLI Workflow (Recommended)
+
+Run full pipeline in CLI with headless Chromium:
+
+```bash
+npm run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
+```
+
+Behavior:
+
+- Uses Chromium profile `~/.config/chromium` by default
+- Starts CDP in headless mode automatically
+- Runs capture + OCR + compression + handoff end-to-end
+- If login is expired, fails fast with explicit "Google sign-in required" message
+
+One-time login refresh when session expires:
+
+```bash
+CDP_USER_DATA_DIR="$HOME/.config/chromium" bash scripts/start-cdp-browser.sh chromium 9222 "https://aistudio.google.com/prompts/<session-id>"
+# complete login in browser window once, then rerun:
+npm run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
+```
+
 ## Usage
 
 ```bash

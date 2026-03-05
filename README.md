@@ -38,9 +38,11 @@ Install OCR backends:
 sudo pacman -S --needed tesseract tesseract-data-eng tesseract-data-chi_sim
 
 # Optional PaddleOCR sidecar (CPU)
+# Note: Paddle runtime typically supports Python 3.10~3.12.
+# If your system Python is newer (e.g. 3.14), use a separate compatible interpreter.
 python -m venv .venv-ocr
 source .venv-ocr/bin/activate
-python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+python -m pip install paddlepaddle -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
 python -m pip install paddleocr
 ```
 
@@ -86,6 +88,8 @@ Force PaddleOCR engine:
 ```bash
 npm run dev -- enrich-images --raw ./out/session.raw.ndjson --ocr-engine paddle --python-bin python3
 ```
+
+If Paddle is unavailable, engine auto-detect falls back to Tesseract.
 
 ## Outputs
 

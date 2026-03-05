@@ -48,7 +48,7 @@ export async function isPaddleOcrAvailable(pythonBin: string): Promise<boolean> 
   try {
     await execFileAsync(
       pythonBin,
-      ["-c", "import paddleocr; print('ok')"],
+      ["-c", "import paddle, paddleocr; print('ok')"],
       {
         timeout: 12000,
         maxBuffer: 1024 * 1024,

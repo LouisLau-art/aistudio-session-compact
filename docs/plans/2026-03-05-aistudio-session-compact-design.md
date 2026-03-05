@@ -11,10 +11,10 @@ Build a CLI tool that exports very long Google AI Studio chat sessions from an a
 - Perfect DOM compatibility for all future AI Studio UI changes
 
 ## Architecture
-The tool is a Node.js + TypeScript CLI with four pipeline stages:
+The tool is a Bun + TypeScript CLI with four pipeline stages:
 1. `capture`: connect to existing Chrome over CDP and extract turns + images
 2. `enrich-images`: run multimodal/OCR summaries on captured images
-3. `compress`: perform hierarchical chunk summaries and produce structured JSON capsule
+3. `compress`: perform local heuristic chunk summaries and produce structured JSON capsule
 4. `handoff`: produce copy-paste markdown prompt(s) for new session continuation
 
 ## Data Contracts
@@ -41,9 +41,14 @@ The tool is a Node.js + TypeScript CLI with four pipeline stages:
 
 ## Compression Strategy
 - Chunk by approximate token budget
-- Per chunk: summarize decisions, facts, open questions, TODOs, constraints
+- Per chunk: summarize decisions, facts, open questions, TODOs, constraints with local heuristics
 - Global pass: merge chunk summaries into stable schema
 - Preserve traceability with source turn IDs per extracted fact/decision
+
+## Agent/Docs Workflow
+- Prefer local skills for task-scoped workflows.
+- Use Context7 for doc-sensitive API behavior (Playwright CDP, Bun runtime flags, OCR options).
+- Keep `README.md`, `docs/plans/*`, and `AGENT.md` in sync after architecture changes.
 
 ## Failure Handling
 - Capture stage writes partial output progressively

@@ -4,9 +4,11 @@
 
 **Goal:** Build a production-usable CLI that captures large AI Studio sessions, enriches images, compresses context, and emits restart artifacts.
 
-**Architecture:** A TypeScript CLI with explicit subcommands for `capture`, `enrich-images`, `compress`, and `handoff`, connected by stable JSON/NDJSON contracts. Each stage is resumable and writes auditable artifacts for debugging and trust.
+**Architecture:** A TypeScript CLI (Bun runtime) with explicit subcommands for `capture`, `enrich-images`, `compress`, and `handoff`, connected by stable JSON/NDJSON contracts. Each stage is resumable and writes auditable artifacts for debugging and trust.
 
 **Tech Stack:** Bun, TypeScript, Playwright (CDP), Doubao-compatible vision endpoint, Zod, Vitest.
+
+**Agent Rule:** Use repository skills first; use Context7 for doc-sensitive third-party API decisions.
 
 ---
 
@@ -23,14 +25,14 @@
 Create a smoke test entry for CLI invocation that expects no throw on `--help`.
 
 **Step 2: Run test to verify it fails**
-Run: `npm test`
+Run: `bun run test`
 Expected: FAIL because project/test harness is not initialized.
 
 **Step 3: Write minimal implementation**
 Add scripts, TS config, and test harness wiring.
 
 **Step 4: Run test to verify it passes**
-Run: `npm test`
+Run: `bun run test`
 Expected: PASS for bootstrap smoke.
 
 **Step 5: Commit**
@@ -49,14 +51,14 @@ Expected: PASS for bootstrap smoke.
 Add extractor test with HTML fixture expecting normalized turns.
 
 **Step 2: Run test to verify it fails**
-Run: `npm test -- capture.extract`
+Run: `bun run test`
 Expected: FAIL; extractor missing.
 
 **Step 3: Write minimal implementation**
 Implement tab selection, auto-scroll stabilization, DOM extraction, NDJSON writer.
 
 **Step 4: Run test to verify it passes**
-Run: `npm test -- capture.extract`
+Run: `bun run test`
 Expected: PASS.
 
 **Step 5: Commit**
@@ -73,14 +75,14 @@ Expected: PASS.
 Assert prompt builder includes OCR, visual summary, and strict JSON request.
 
 **Step 2: Run test to verify it fails**
-Run: `npm test -- enrich.prompt`
+Run: `bun run test`
 Expected: FAIL.
 
 **Step 3: Write minimal implementation**
 Implement image iteration, model call, JSONL output, per-image error recording.
 
 **Step 4: Run test to verify it passes**
-Run: `npm test -- enrich.prompt`
+Run: `bun run test`
 Expected: PASS.
 
 **Step 5: Commit**
@@ -99,14 +101,14 @@ Expected: PASS.
 Test chunk budget behavior and deterministic merge semantics.
 
 **Step 2: Run test to verify it fails**
-Run: `npm test -- chunking capsule`
+Run: `bun run test`
 Expected: FAIL.
 
 **Step 3: Write minimal implementation**
 Implement chunk splitter, chunk summarizer calls, global merge and schema output.
 
 **Step 4: Run test to verify it passes**
-Run: `npm test -- chunking capsule`
+Run: `bun run test`
 Expected: PASS.
 
 **Step 5: Commit**
@@ -123,14 +125,14 @@ Expected: PASS.
 Assert generated markdown includes summary, decisions, open questions, and resume prompt block.
 
 **Step 2: Run test to verify it fails**
-Run: `npm test -- handoff.render`
+Run: `bun run test`
 Expected: FAIL.
 
 **Step 3: Write minimal implementation**
 Render `handoff.md` and `resume_prompt.md` from capsule JSON.
 
 **Step 4: Run test to verify it passes**
-Run: `npm test -- handoff.render`
+Run: `bun run test`
 Expected: PASS.
 
 **Step 5: Commit**
@@ -149,14 +151,14 @@ Expected: PASS.
 Add smoke test for `pipeline` command with fixture input.
 
 **Step 2: Run test to verify it fails**
-Run: `npm test -- pipeline.smoke`
+Run: `bun run test`
 Expected: FAIL.
 
 **Step 3: Write minimal implementation**
 Wire sequential stage execution and document full workflow.
 
 **Step 4: Run test to verify it passes**
-Run: `npm test`
+Run: `bun run test`
 Expected: PASS.
 
 **Step 5: Commit**

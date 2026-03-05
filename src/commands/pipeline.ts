@@ -4,6 +4,7 @@ import { runCapture } from "./capture.js";
 import { runCompress } from "./compress.js";
 import { runEnrichImages } from "./enrichImages.js";
 import type { VisionProvider } from "./enrichImages.js";
+import type { OcrEngine } from "../lib/ocr.js";
 import { runHandoff } from "./handoff.js";
 import { writeJson } from "../lib/fs.js";
 
@@ -13,8 +14,10 @@ export interface PipelineOptions {
   urlMatch: string;
   model: string;
   provider: VisionProvider;
+  ocrEngine: OcrEngine;
   enableOcr: boolean;
   ocrLang: string;
+  pythonBin?: string;
   doubaoApiKey?: string;
   doubaoBaseUrl?: string;
   geminiApiKey?: string;
@@ -42,8 +45,10 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
     outPath: imagesOut,
     model: options.model,
     provider: options.provider,
+    ocrEngine: options.ocrEngine,
     enableOcr: options.enableOcr,
     ocrLang: options.ocrLang,
+    pythonBin: options.pythonBin,
     doubaoApiKey: options.doubaoApiKey,
     doubaoBaseUrl: options.doubaoBaseUrl,
     apiKey: options.geminiApiKey,

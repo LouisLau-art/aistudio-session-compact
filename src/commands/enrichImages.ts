@@ -3,7 +3,13 @@ import path from "node:path";
 
 import { callDoubaoVision } from "../lib/doubao.js";
 import { callGemini } from "../lib/gemini.js";
-import { runTesseractOcr } from "../lib/ocr.js";
+import {
+  resolveOcrEngine,
+  runPaddleOcr,
+  runTesseractOcr,
+  type OcrEngine,
+  type ResolvedOcrEngine,
+} from "../lib/ocr.js";
 import { ensureDir, readNdjson, writeNdjson } from "../lib/fs.js";
 import type { ImageEnrichment, SessionTurn } from "../types.js";
 
@@ -15,8 +21,10 @@ export interface EnrichImagesOptions {
   outPath: string;
   model: string;
   provider?: VisionProvider;
+  ocrEngine?: OcrEngine;
   enableOcr?: boolean;
   ocrLang?: string;
+  pythonBin?: string;
   apiKey?: string;
   doubaoApiKey?: string;
   doubaoBaseUrl?: string;
@@ -76,8 +84,13 @@ export async function runEnrichImages(options: EnrichImagesOptions): Promise<{ o
     doubaoApiKey,
     geminiApiKey,
   });
+  const ocrEngine = options.ocrEngine ?? "auto";
   const ocrLang = options.ocrLang ?? process.env.OCR_LANG ?? "eng+chi_sim";
   const enableOcr = options.enableOcr ?? true;
+  const pythonBin = options.pythonBin ?? process.env.OCR_PYTHON_BIN ?? "python3";
+  const resolvedOcrEngine: ResolvedOcrEngine = enableOcr
+    ? await resolveOcrEngine(ocrEngine, pythonBin)
+    : "none";
 
   await ensureDir(path.dirname(options.outPath));
 
@@ -100,11 +113,26 @@ export async function runEnrichImages(options: EnrichImagesOptions): Promise<{ o
       let ocrText = "";
       let ocrError = "";
 
-      if (enableOcr) {
+      if (enableOcr && resolvedOcrEngine !== "none") {
         try {
-          ocrText = await runTesseractOcr(image.localPath, ocrLang);
+          ocrText =
+            resolvedOcrEngine === "paddle"
+              ? await runPaddleOcr(image.localPath, ocrLang, pythonBin)
+              : await runTesseractOcr(image.localPath, ocrLang);
         } catch (error) {
-          ocrError = error instanceof Error ? error.message : String(error);
+          const primaryError = error instanceof Error ? error.message : String(error);
+
+          if (resolvedOcrEngine === "paddle") {
+            try {
+              ocrText = await runTesseractOcr(image.localPath, ocrLang);
+              ocrError = `paddle failed, fallback tesseract used: ${primaryError}`;
+            } catch (fallbackError) {
+              const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+              ocrError = `paddle failed: ${primaryError} | tesseract fallback failed: ${fallbackMessage}`;
+            }
+          } else {
+            ocrError = primaryError;
+          }
         }
       }
 

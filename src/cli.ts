@@ -8,6 +8,7 @@ import type { VisionProvider } from "./commands/enrichImages.js";
 import { runEnrichImages } from "./commands/enrichImages.js";
 import { runHandoff } from "./commands/handoff.js";
 import { runPipeline } from "./commands/pipeline.js";
+import type { OcrEngine } from "./lib/ocr.js";
 
 const program = new Command();
 
@@ -48,9 +49,11 @@ program
   .requiredOption("--raw <path>", "Path to session.raw.ndjson")
   .option("--out <path>", "Output images.enriched.jsonl", "./out/images.enriched.jsonl")
   .option("--provider <name>", "Vision provider: auto|doubao|gemini|none", parseVisionProvider, "auto")
+  .option("--ocr-engine <name>", "OCR engine: auto|tesseract|paddle", parseOcrEngine, "auto")
   .option("--model <model>", "Vision model id", process.env.VISION_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-3-flash-preview")
   .option("--disable-ocr", "Disable local Tesseract OCR", false)
   .option("--ocr-lang <lang>", "Tesseract OCR language", process.env.OCR_LANG ?? "eng+chi_sim")
+  .option("--python-bin <path>", "Python binary for PaddleOCR sidecar", process.env.OCR_PYTHON_BIN ?? "python3")
   .option("--doubao-api-key <key>", "Doubao API key")
   .option("--doubao-base-url <url>", "Doubao/OpenAI-compatible base URL", process.env.DOUBAO_BASE_URL)
   .option("--api-key <key>", "Gemini API key")
@@ -60,8 +63,10 @@ program
       outPath: path.resolve(opts.out),
       model: opts.model,
       provider: opts.provider,
+      ocrEngine: opts.ocrEngine,
       enableOcr: !opts.disableOcr,
       ocrLang: opts.ocrLang,
+      pythonBin: opts.pythonBin,
       doubaoApiKey: opts.doubaoApiKey,
       doubaoBaseUrl: opts.doubaoBaseUrl,
       apiKey: opts.apiKey,
@@ -116,9 +121,11 @@ program
   .option("--url-match <text>", "URL match for target tab", "aistudio.google.com/prompts/")
   .option("--out <dir>", "Output directory", "./out")
   .option("--provider <name>", "Vision provider: auto|doubao|gemini|none", parseVisionProvider, "auto")
+  .option("--ocr-engine <name>", "OCR engine: auto|tesseract|paddle", parseOcrEngine, "auto")
   .option("--model <model>", "Vision/compression model id", process.env.VISION_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-3-flash-preview")
   .option("--disable-ocr", "Disable local Tesseract OCR", false)
   .option("--ocr-lang <lang>", "Tesseract OCR language", process.env.OCR_LANG ?? "eng+chi_sim")
+  .option("--python-bin <path>", "Python binary for PaddleOCR sidecar", process.env.OCR_PYTHON_BIN ?? "python3")
   .option("--doubao-api-key <key>", "Doubao API key")
   .option("--doubao-base-url <url>", "Doubao/OpenAI-compatible base URL", process.env.DOUBAO_BASE_URL)
   .option("--api-key <key>", "Gemini API key")
@@ -133,8 +140,10 @@ program
       urlMatch: opts.urlMatch,
       model: opts.model,
       provider: opts.provider,
+      ocrEngine: opts.ocrEngine,
       enableOcr: !opts.disableOcr,
       ocrLang: opts.ocrLang,
+      pythonBin: opts.pythonBin,
       doubaoApiKey: opts.doubaoApiKey,
       doubaoBaseUrl: opts.doubaoBaseUrl,
       geminiApiKey: opts.apiKey,
@@ -170,4 +179,11 @@ function parseVisionProvider(value: string): VisionProvider {
     return value;
   }
   throw new Error(`Invalid vision provider: ${value}`);
+}
+
+function parseOcrEngine(value: string): OcrEngine {
+  if (value === "auto" || value === "tesseract" || value === "paddle") {
+    return value;
+  }
+  throw new Error(`Invalid OCR engine: ${value}`);
 }

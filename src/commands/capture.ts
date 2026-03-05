@@ -1,5 +1,5 @@
 import path from "node:path";
-import { chromium, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 
 import type { BrowserExtractedTurn } from "../lib/extract.js";
 import { fallbackTextTurn, normalizeBrowserTurns } from "../lib/extract.js";
@@ -38,47 +38,58 @@ export async function runCapture(options: CaptureOptions): Promise<{
   await ensureDir(imagesDir);
 
   const browser = await chromium.connectOverCDP(options.cdpUrl);
-  const page = await findTargetPage(browser.contexts(), options.urlMatch, options.tabIndex);
-  const sourceUrl = page.url();
-  assertAistudioSessionReady(sourceUrl);
+  try {
+    const page = await findTargetPage(browser.contexts(), options.urlMatch, options.tabIndex);
+    const sourceUrl = page.url();
+    assertAistudioSessionReady(sourceUrl);
 
-  await autoScrollLoad(page, options.maxScrollIterations, options.stableRounds, options.scrollWaitMs);
+    await autoScrollLoad(page, options.maxScrollIterations, options.stableRounds, options.scrollWaitMs);
 
-  const extracted = await extractTurns(page);
-  let turns = normalizeBrowserTurns(extracted, sourceUrl);
+    const extracted = await extractTurns(page);
+    let turns = normalizeBrowserTurns(extracted, sourceUrl);
 
-  if (!turns.length) {
-    const fullText = await page.evaluate(() => document.body?.innerText ?? "");
-    turns = fallbackTextTurn(fullText, sourceUrl);
+    if (!turns.length) {
+      const fullText = await page.evaluate(() => document.body?.innerText ?? "");
+      turns = fallbackTextTurn(fullText, sourceUrl);
+    }
+    assertAistudioSessionReady(sourceUrl, turns[0]?.text);
+
+    const savedImages = await saveVisibleImages(page, imagesDir);
+    attachSavedImages(turns, savedImages);
+
+    await writeNdjson(rawPath, turns);
+
+    const report: CaptureRunReport = {
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      sourceUrl,
+      turnCount: turns.length,
+      imageCount: turns.reduce((sum, turn) => sum + turn.images.length, 0),
+      outputRawPath: rawPath,
+      outputImagesDir: imagesDir,
+      notes: [
+        "Capture uses heuristic selectors and may include non-message text if UI changes.",
+        "Image files are element screenshots from the loaded DOM.",
+      ],
+    };
+
+    await writeJson(reportPath, report);
+
+    return {
+      rawPath,
+      reportPath,
+      turns,
+    };
+  } finally {
+    disconnectCdpConnection(browser);
   }
-  assertAistudioSessionReady(sourceUrl, turns[0]?.text);
+}
 
-  const savedImages = await saveVisibleImages(page, imagesDir);
-  attachSavedImages(turns, savedImages);
-
-  await writeNdjson(rawPath, turns);
-
-  const report: CaptureRunReport = {
-    startedAt,
-    finishedAt: new Date().toISOString(),
-    sourceUrl,
-    turnCount: turns.length,
-    imageCount: turns.reduce((sum, turn) => sum + turn.images.length, 0),
-    outputRawPath: rawPath,
-    outputImagesDir: imagesDir,
-    notes: [
-      "Capture uses heuristic selectors and may include non-message text if UI changes.",
-      "Image files are element screenshots from the loaded DOM.",
-    ],
-  };
-
-  await writeJson(reportPath, report);
-
-  return {
-    rawPath,
-    reportPath,
-    turns,
-  };
+function disconnectCdpConnection(browser: Browser): void {
+  const conn = (browser as unknown as { _connection?: { close?: () => void } })._connection;
+  if (conn && typeof conn.close === "function") {
+    conn.close();
+  }
 }
 
 async function findTargetPage(

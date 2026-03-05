@@ -93,8 +93,15 @@ Behavior:
 
 - Uses Chromium profile `~/.config/chromium` by default
 - Starts CDP in headless mode automatically
+- Matches target tab by session URL (`aistudio.google.com/prompts/<id>`) by default
 - Runs capture + OCR + compression + handoff end-to-end
 - If login is expired, fails fast with explicit "Google sign-in required" message
+
+If multiple tabs still cause mismatch, set explicit tab index:
+
+```bash
+TAB_INDEX=0 bun run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
+```
 
 One-time login refresh when session expires:
 

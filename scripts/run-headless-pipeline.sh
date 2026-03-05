@@ -27,23 +27,32 @@ provider="${VISION_PROVIDER:-none}"
 ocr_engine="${OCR_ENGINE:-auto}"
 ocr_lang="${OCR_LANG:-eng+chi_sim}"
 python_bin="${OCR_PYTHON_BIN:-python3}"
-model="${VISION_MODEL:-vision-model}"
+tab_index="${TAB_INDEX:-}"
+session_id="${target_url##*/}"
+session_id="${session_id%%\?*}"
+url_match="${URL_MATCH:-aistudio.google.com/prompts/${session_id}}"
 
 CDP_HEADLESS=1 CDP_USER_DATA_DIR="${profile_dir}" \
   bash scripts/start-cdp-browser.sh chromium "${cdp_port}" "${target_url}"
 
 set +e
-bun run dev -- pipeline \
-  --cdp-url "${cdp_url}" \
-  --url-match "aistudio.google.com/prompts/" \
-  --tab-index 0 \
-  --out "${out_dir}" \
-  --provider "${provider}" \
-  --ocr-engine "${ocr_engine}" \
-  --ocr-lang "${ocr_lang}" \
-  --python-bin "${python_bin}" \
-  --model "${model}" \
-  "$@"
+cmd=(
+  bun run dev -- pipeline
+  --cdp-url "${cdp_url}"
+  --url-match "${url_match}"
+  --out "${out_dir}"
+  --provider "${provider}"
+  --ocr-engine "${ocr_engine}"
+  --ocr-lang "${ocr_lang}"
+  --python-bin "${python_bin}"
+)
+
+if [[ -n "${tab_index}" ]]; then
+  cmd+=(--tab-index "${tab_index}")
+fi
+
+cmd+=("$@")
+"${cmd[@]}"
 rc=$?
 set -e
 

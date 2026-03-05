@@ -25,4 +25,22 @@ describe("normalizeBrowserTurns", () => {
     expect(turns[1].role).toBe("model");
     expect(turns[0].images[0].id).toContain("img");
   });
+
+  it("splits composite User/Model text and removes UI tokens", () => {
+    const turns = normalizeBrowserTurns(
+      [
+        {
+          text: "menu more_vert User hello there Model 5:27 PM sure, got it thumb_up",
+          images: [],
+        },
+      ],
+      "https://aistudio.google.com/prompts/test",
+    );
+
+    expect(turns.length).toBeGreaterThanOrEqual(2);
+    expect(turns[0].role).toBe("user");
+    expect(turns[1].role).toBe("model");
+    expect(turns[0].text).not.toContain("more_vert");
+    expect(turns[1].text).not.toContain("thumb_up");
+  });
 });

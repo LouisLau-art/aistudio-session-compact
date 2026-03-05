@@ -37,50 +37,45 @@ export async function runCapture(options: CaptureOptions): Promise<{
   await ensureDir(imagesDir);
 
   const browser = await chromium.connectOverCDP(options.cdpUrl);
+  const page = await findTargetPage(browser.contexts(), options.urlMatch, options.tabIndex);
+  const sourceUrl = page.url();
 
-  try {
-    const page = await findTargetPage(browser.contexts(), options.urlMatch, options.tabIndex);
-    const sourceUrl = page.url();
+  await autoScrollLoad(page, options.maxScrollIterations, options.stableRounds, options.scrollWaitMs);
 
-    await autoScrollLoad(page, options.maxScrollIterations, options.stableRounds, options.scrollWaitMs);
+  const extracted = await extractTurns(page);
+  let turns = normalizeBrowserTurns(extracted, sourceUrl);
 
-    const extracted = await extractTurns(page);
-    let turns = normalizeBrowserTurns(extracted, sourceUrl);
-
-    if (!turns.length) {
-      const fullText = await page.evaluate(() => document.body?.innerText ?? "");
-      turns = fallbackTextTurn(fullText, sourceUrl);
-    }
-
-    const savedImages = await saveVisibleImages(page, imagesDir);
-    attachSavedImages(turns, savedImages);
-
-    await writeNdjson(rawPath, turns);
-
-    const report: CaptureRunReport = {
-      startedAt,
-      finishedAt: new Date().toISOString(),
-      sourceUrl,
-      turnCount: turns.length,
-      imageCount: turns.reduce((sum, turn) => sum + turn.images.length, 0),
-      outputRawPath: rawPath,
-      outputImagesDir: imagesDir,
-      notes: [
-        "Capture uses heuristic selectors and may include non-message text if UI changes.",
-        "Image files are element screenshots from the loaded DOM.",
-      ],
-    };
-
-    await writeJson(reportPath, report);
-
-    return {
-      rawPath,
-      reportPath,
-      turns,
-    };
-  } finally {
-    await browser.close();
+  if (!turns.length) {
+    const fullText = await page.evaluate(() => document.body?.innerText ?? "");
+    turns = fallbackTextTurn(fullText, sourceUrl);
   }
+
+  const savedImages = await saveVisibleImages(page, imagesDir);
+  attachSavedImages(turns, savedImages);
+
+  await writeNdjson(rawPath, turns);
+
+  const report: CaptureRunReport = {
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    sourceUrl,
+    turnCount: turns.length,
+    imageCount: turns.reduce((sum, turn) => sum + turn.images.length, 0),
+    outputRawPath: rawPath,
+    outputImagesDir: imagesDir,
+    notes: [
+      "Capture uses heuristic selectors and may include non-message text if UI changes.",
+      "Image files are element screenshots from the loaded DOM.",
+    ],
+  };
+
+  await writeJson(reportPath, report);
+
+  return {
+    rawPath,
+    reportPath,
+    turns,
+  };
 }
 
 async function findTargetPage(

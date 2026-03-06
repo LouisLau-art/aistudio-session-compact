@@ -139,18 +139,21 @@ async function autoScrollLoad(
   stableRounds: number,
   waitMs: number,
 ): Promise<void> {
-  let previous = 0;
+  let previousTextLen = 0;
+  let previousTurnCount = 0;
   let stable = 0;
 
   for (let i = 0; i < maxIterations; i += 1) {
     const metric = await page.evaluate(() => {
       const textLen = (document.body?.textContent ?? "").length;
+      const turnCount = document.querySelectorAll("ms-chat-turn").length;
 
       const candidates = [
+        document.querySelector<HTMLElement>("ms-autoscroll-container"),
+        document.querySelector<HTMLElement>(".chat-container"),
         document.scrollingElement as HTMLElement | null,
         document.querySelector<HTMLElement>("main"),
         document.querySelector<HTMLElement>("[role='main']"),
-        document.querySelector<HTMLElement>("ms-chat-turn"),
       ].filter(Boolean) as HTMLElement[];
 
       const deduped = Array.from(new Set(candidates));
@@ -161,16 +164,23 @@ async function autoScrollLoad(
       }
 
       window.scrollTo(0, 0);
-      return textLen;
+      return {
+        textLen,
+        turnCount,
+      };
     });
 
-    if (metric <= previous + 120) {
+    const grewText = metric.textLen > previousTextLen + 120;
+    const grewTurns = metric.turnCount > previousTurnCount;
+
+    if (!grewText && !grewTurns) {
       stable += 1;
     } else {
       stable = 0;
     }
 
-    previous = metric;
+    previousTextLen = Math.max(previousTextLen, metric.textLen);
+    previousTurnCount = Math.max(previousTurnCount, metric.turnCount);
 
     if (stable >= stableRounds) {
       break;
@@ -204,88 +214,45 @@ async function extractTurnsFromChatTurns(page: Page, turnCount: number): Promise
       return [];
     }
 
-    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-    const avgTurnHeight = Math.max(1, scroller.scrollHeight / Math.max(1, turns.length));
-    const visibleTurnCount = Math.max(1, Math.ceil(scroller.clientHeight / avgTurnHeight));
-    const stepTurns = Math.max(1, Math.floor(visibleTurnCount));
-    const scanPadding = Math.max(8, visibleTurnCount * 6);
-    const delayMs = 6;
+    const estimatedTurnHeight = Math.max(1, scroller.scrollHeight / Math.max(1, turns.length));
+    const visibleTurnCount = Math.max(1, Math.ceil(scroller.clientHeight / estimatedTurnHeight));
+    const stepTurns = Math.max(1, Math.floor(visibleTurnCount / 1.5));
+    const scanPadding = Math.max(12, visibleTurnCount * 8);
+    const delayMs = 18;
     const byTurnId = new Map<string, { idx: number; row: BrowserExtractedTurn }>();
-
-    for (let idx = 0; idx <= Math.min(turns.length - 1, scanPadding); idx += 1) {
-      const el = turns[idx];
-      if (!el) continue;
-      const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-      if (text.length < 20) continue;
-
-      const containerClass = (el.querySelector(".chat-turn-container") as HTMLElement | null)?.className ?? "";
-      const roleHint =
-        containerClass ||
-        el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
-        el.getAttribute("id") ||
-        undefined;
-
-      const images = Array.from(el.querySelectorAll("img"))
-        .map((img) => ({
-          src: img.getAttribute("src") ?? "",
-          alt: img.getAttribute("alt") ?? undefined,
-        }))
-        .filter((img) => img.src);
-
-      const turnId = el.getAttribute("id") ?? `turn-index-${idx}`;
-      const domPath = `ms-chat-turn#${turnId}`;
-      const row: BrowserExtractedTurn = { text, roleHint, images, domPath };
-      const prev = byTurnId.get(turnId);
-      if (!prev || row.text.length > prev.row.text.length) {
-        byTurnId.set(turnId, { idx, row });
-      }
-    }
+    const anchors: number[] = [0];
 
     for (let anchor = 0; anchor < turns.length; anchor += stepTurns) {
-      const target = Math.min(maxScroll, Math.max(0, Math.floor(anchor * avgTurnHeight)));
-      scroller.scrollTop = target;
+      anchors.push(anchor);
+    }
+    if (turns.length > 1) {
+      anchors.push(turns.length - 1);
+    }
+
+    for (const anchor of anchors) {
+      const target = turns[anchor];
+      if (!target) {
+        continue;
+      }
+
+      target.scrollIntoView({
+        block: anchor === 0 ? "start" : anchor === turns.length - 1 ? "end" : "center",
+        inline: "nearest",
+      });
       await new Promise((resolve) => setTimeout(resolve, delayMs));
 
       const start = Math.max(0, anchor - scanPadding);
       const end = Math.min(turns.length - 1, anchor + scanPadding);
       for (let idx = start; idx <= end; idx += 1) {
         const el = turns[idx];
-        if (!el) continue;
-        const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-        if (text.length < 20) continue;
-
-        const containerClass = (el.querySelector(".chat-turn-container") as HTMLElement | null)?.className ?? "";
-        const roleHint =
-          containerClass ||
-          el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
-          el.getAttribute("id") ||
-          undefined;
-
-        const images = Array.from(el.querySelectorAll("img"))
-          .map((img) => ({
-            src: img.getAttribute("src") ?? "",
-            alt: img.getAttribute("alt") ?? undefined,
-          }))
-          .filter((img) => img.src);
-
-        const turnId = el.getAttribute("id") ?? `turn-index-${idx}`;
-        const domPath = `ms-chat-turn#${turnId}`;
-        const row: BrowserExtractedTurn = { text, roleHint, images, domPath };
-        const prev = byTurnId.get(turnId);
-        if (!prev || row.text.length > prev.row.text.length) {
-          byTurnId.set(turnId, { idx, row });
+        if (!el) {
+          continue;
         }
-      }
-    }
 
-    if (scroller.scrollTop !== maxScroll) {
-      scroller.scrollTop = maxScroll;
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-      for (let idx = Math.max(0, turns.length - (scanPadding * 2 + 1)); idx <= turns.length - 1; idx += 1) {
-        const el = turns[idx];
-        if (!el) continue;
         const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-        if (text.length < 20) continue;
+        if (text.length < 20) {
+          continue;
+        }
 
         const containerClass = (el.querySelector(".chat-turn-container") as HTMLElement | null)?.className ?? "";
         const roleHint =

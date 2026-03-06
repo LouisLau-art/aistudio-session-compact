@@ -96,6 +96,7 @@ Behavior:
 - Matches target tab by session URL (`aistudio.google.com/prompts/<id>`) by default
 - Runs capture + OCR + compression + handoff end-to-end
 - If login is expired, fails fast with explicit "Google sign-in required" message
+- Capture quality gate is enabled by default (fails fast on noisy/invalid extraction)
 
 If multiple tabs still cause mismatch, set explicit tab index:
 
@@ -126,10 +127,30 @@ One-shot pipeline:
 bun run dev -- pipeline --out ./out --provider auto --ocr-engine auto --ocr-lang eng+chi_sim
 ```
 
+Disable strict capture gate for raw debugging only:
+
+```bash
+bun run dev -- pipeline --out ./out --provider none --no-strict-capture
+```
+
+Limit image screenshots to speed up very large sessions:
+
+```bash
+bun run dev -- capture --out ./out --max-image-screenshots 40
+# headless wrapper:
+MAX_IMAGE_SCREENSHOTS=40 bun run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
+```
+
 If URL matching fails (for example due login redirect), select a tab directly:
 
 ```bash
 bun run dev -- pipeline --out ./out --tab-index 0 --provider none
+```
+
+Headless wrapper can also disable strict gate:
+
+```bash
+STRICT_CAPTURE=0 bun run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
 ```
 
 Force OCR-only mode (no multimodal API key):

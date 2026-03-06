@@ -10,6 +10,14 @@
 
 **Agent Rule:** Use repository skills first; use Context7 for doc-sensitive third-party API decisions.
 
+## Update 2026-03-06
+
+- Added strict capture quality gate (default on) to prevent low-quality extraction from silently flowing into compression/handoff.
+- Added CLI/pipeline escape hatch `--no-strict-capture` (and headless wrapper env `STRICT_CAPTURE=0`) for raw debugging.
+- Tightened extraction noise filtering for attachment metadata (`User docs ... tokens`), `Model Thoughts`, and AI Studio watermark images.
+- Added virtual-list-aware capture path for `ms-chat-turn` (segment scanning) to handle AI Studio lazy rendering.
+- Added screenshot cap `--max-image-screenshots` (`MAX_IMAGE_SCREENSHOTS` in headless wrapper) and skip-image stage when no turn images are referenced.
+
 ---
 
 ### Task 1: Project Bootstrap

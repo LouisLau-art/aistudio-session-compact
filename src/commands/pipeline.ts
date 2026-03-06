@@ -13,6 +13,7 @@ export interface PipelineOptions {
   cdpUrl: string;
   urlMatch: string;
   tabIndex?: number;
+  strictCapture?: boolean;
   model: string;
   provider: VisionProvider;
   ocrEngine: OcrEngine;
@@ -25,6 +26,7 @@ export interface PipelineOptions {
   maxScrollIterations: number;
   stableRounds: number;
   scrollWaitMs: number;
+  maxImageScreenshots: number;
 }
 
 export async function runPipeline(options: PipelineOptions): Promise<void> {
@@ -36,6 +38,8 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
     stableRounds: options.stableRounds,
     scrollWaitMs: options.scrollWaitMs,
     tabIndex: options.tabIndex,
+    strictCapture: options.strictCapture,
+    maxImageScreenshots: options.maxImageScreenshots,
   });
 
   const imagesOut = path.join(options.outDir, "images.enriched.jsonl");

@@ -28,6 +28,8 @@ ocr_engine="${OCR_ENGINE:-auto}"
 ocr_lang="${OCR_LANG:-eng+chi_sim}"
 python_bin="${OCR_PYTHON_BIN:-python3}"
 tab_index="${TAB_INDEX:-}"
+strict_capture="${STRICT_CAPTURE:-1}"
+max_image_screenshots="${MAX_IMAGE_SCREENSHOTS:-80}"
 session_id="${target_url##*/}"
 session_id="${session_id%%\?*}"
 url_match="${URL_MATCH:-aistudio.google.com/prompts/${session_id}}"
@@ -45,10 +47,14 @@ cmd=(
   --ocr-engine "${ocr_engine}"
   --ocr-lang "${ocr_lang}"
   --python-bin "${python_bin}"
+  --max-image-screenshots "${max_image_screenshots}"
 )
 
 if [[ -n "${tab_index}" ]]; then
   cmd+=(--tab-index "${tab_index}")
+fi
+if [[ "${strict_capture}" == "0" || "${strict_capture}" == "false" ]]; then
+  cmd+=(--no-strict-capture)
 fi
 
 cmd+=("$@")

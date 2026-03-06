@@ -2,7 +2,7 @@ import path from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 
 import type { BrowserExtractedTurn } from "../lib/extract.js";
-import { fallbackTextTurn, normalizeBrowserTurns } from "../lib/extract.js";
+import { assertCaptureQuality, fallbackTextTurn, normalizeBrowserTurns } from "../lib/extract.js";
 import { ensureDir, writeJson, writeNdjson } from "../lib/fs.js";
 import { assertAistudioSessionReady } from "../lib/sessionGuard.js";
 import type { CaptureRunReport, SessionTurn } from "../types.js";
@@ -15,6 +15,8 @@ export interface CaptureOptions {
   stableRounds: number;
   scrollWaitMs: number;
   tabIndex?: number;
+  strictCapture?: boolean;
+  maxImageScreenshots: number;
 }
 
 interface SavedImage {
@@ -53,9 +55,18 @@ export async function runCapture(options: CaptureOptions): Promise<{
       turns = fallbackTextTurn(fullText, sourceUrl);
     }
     assertAistudioSessionReady(sourceUrl, turns[0]?.text);
+    assertCaptureQuality(turns, options.strictCapture ?? true);
 
-    const savedImages = await saveVisibleImages(page, imagesDir);
-    attachSavedImages(turns, savedImages);
+    const neededImageSrcs = new Set(turns.flatMap((turn) => turn.images.map((image) => image.src)));
+    if (neededImageSrcs.size > 0) {
+      const savedImages = await saveVisibleImages(
+        page,
+        imagesDir,
+        neededImageSrcs,
+        options.maxImageScreenshots,
+      );
+      attachSavedImages(turns, savedImages);
+    }
 
     await writeNdjson(rawPath, turns);
 
@@ -128,23 +139,23 @@ async function autoScrollLoad(
 
   for (let i = 0; i < maxIterations; i += 1) {
     const metric = await page.evaluate(() => {
-      const bodyText = document.body?.innerText ?? "";
-      const textLen = bodyText.length;
+      const textLen = (document.body?.textContent ?? "").length;
 
-      const scrollables = Array.from(document.querySelectorAll<HTMLElement>("*"))
-        .filter((el) => {
-          const style = window.getComputedStyle(el);
-          const isScrollable = /(auto|scroll)/.test(style.overflowY || "");
-          return isScrollable && el.scrollHeight > el.clientHeight + 50;
-        })
-        .sort((a, b) => b.scrollHeight - a.scrollHeight)
-        .slice(0, 3);
+      const candidates = [
+        document.scrollingElement as HTMLElement | null,
+        document.querySelector<HTMLElement>("main"),
+        document.querySelector<HTMLElement>("[role='main']"),
+        document.querySelector<HTMLElement>("ms-chat-turn"),
+      ].filter(Boolean) as HTMLElement[];
 
-      for (const el of scrollables) {
-        el.scrollTop = 0;
+      const deduped = Array.from(new Set(candidates));
+      for (const el of deduped) {
+        if (el.scrollHeight > el.clientHeight + 50) {
+          el.scrollTop = 0;
+        }
       }
 
-      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+      window.scrollTo(0, 0);
       return textLen;
     });
 
@@ -165,6 +176,148 @@ async function autoScrollLoad(
 }
 
 async function extractTurns(page: Page): Promise<BrowserExtractedTurn[]> {
+  const turnCount = await page.locator("ms-chat-turn").count();
+  if (turnCount >= 20) {
+    const hydrated = await extractTurnsFromChatTurns(page, turnCount);
+    if (hydrated.length >= 3) {
+      return hydrated;
+    }
+  }
+
+  return extractTurnsBySelectors(page);
+}
+
+async function extractTurnsFromChatTurns(page: Page, turnCount: number): Promise<BrowserExtractedTurn[]> {
+  return page.evaluate(async (totalTurns) => {
+    const scroller =
+      document.querySelector<HTMLElement>("ms-autoscroll-container") ??
+      document.querySelector<HTMLElement>(".chat-container") ??
+      null;
+    const turns = Array.from(document.querySelectorAll<HTMLElement>("ms-chat-turn"));
+
+    if (!scroller || turns.length < 20) {
+      return [];
+    }
+
+    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    const avgTurnHeight = Math.max(1, scroller.scrollHeight / Math.max(1, turns.length));
+    const visibleTurnCount = Math.max(1, Math.ceil(scroller.clientHeight / avgTurnHeight));
+    const stepTurns = Math.max(1, Math.floor(visibleTurnCount));
+    const scanPadding = Math.max(8, visibleTurnCount * 6);
+    const delayMs = 6;
+    const byTurnId = new Map<string, { idx: number; row: BrowserExtractedTurn }>();
+
+    for (let idx = 0; idx <= Math.min(turns.length - 1, scanPadding); idx += 1) {
+      const el = turns[idx];
+      if (!el) continue;
+      const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+      if (text.length < 20) continue;
+
+      const containerClass = (el.querySelector(".chat-turn-container") as HTMLElement | null)?.className ?? "";
+      const roleHint =
+        containerClass ||
+        el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
+        el.getAttribute("id") ||
+        undefined;
+
+      const images = Array.from(el.querySelectorAll("img"))
+        .map((img) => ({
+          src: img.getAttribute("src") ?? "",
+          alt: img.getAttribute("alt") ?? undefined,
+        }))
+        .filter((img) => img.src);
+
+      const turnId = el.getAttribute("id") ?? `turn-index-${idx}`;
+      const domPath = `ms-chat-turn#${turnId}`;
+      const row: BrowserExtractedTurn = { text, roleHint, images, domPath };
+      const prev = byTurnId.get(turnId);
+      if (!prev || row.text.length > prev.row.text.length) {
+        byTurnId.set(turnId, { idx, row });
+      }
+    }
+
+    for (let anchor = 0; anchor < turns.length; anchor += stepTurns) {
+      const target = Math.min(maxScroll, Math.max(0, Math.floor(anchor * avgTurnHeight)));
+      scroller.scrollTop = target;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      const start = Math.max(0, anchor - scanPadding);
+      const end = Math.min(turns.length - 1, anchor + scanPadding);
+      for (let idx = start; idx <= end; idx += 1) {
+        const el = turns[idx];
+        if (!el) continue;
+        const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (text.length < 20) continue;
+
+        const containerClass = (el.querySelector(".chat-turn-container") as HTMLElement | null)?.className ?? "";
+        const roleHint =
+          containerClass ||
+          el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
+          el.getAttribute("id") ||
+          undefined;
+
+        const images = Array.from(el.querySelectorAll("img"))
+          .map((img) => ({
+            src: img.getAttribute("src") ?? "",
+            alt: img.getAttribute("alt") ?? undefined,
+          }))
+          .filter((img) => img.src);
+
+        const turnId = el.getAttribute("id") ?? `turn-index-${idx}`;
+        const domPath = `ms-chat-turn#${turnId}`;
+        const row: BrowserExtractedTurn = { text, roleHint, images, domPath };
+        const prev = byTurnId.get(turnId);
+        if (!prev || row.text.length > prev.row.text.length) {
+          byTurnId.set(turnId, { idx, row });
+        }
+      }
+    }
+
+    if (scroller.scrollTop !== maxScroll) {
+      scroller.scrollTop = maxScroll;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      for (let idx = Math.max(0, turns.length - (scanPadding * 2 + 1)); idx <= turns.length - 1; idx += 1) {
+        const el = turns[idx];
+        if (!el) continue;
+        const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (text.length < 20) continue;
+
+        const containerClass = (el.querySelector(".chat-turn-container") as HTMLElement | null)?.className ?? "";
+        const roleHint =
+          containerClass ||
+          el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
+          el.getAttribute("id") ||
+          undefined;
+
+        const images = Array.from(el.querySelectorAll("img"))
+          .map((img) => ({
+            src: img.getAttribute("src") ?? "",
+            alt: img.getAttribute("alt") ?? undefined,
+          }))
+          .filter((img) => img.src);
+
+        const turnId = el.getAttribute("id") ?? `turn-index-${idx}`;
+        const domPath = `ms-chat-turn#${turnId}`;
+        const row: BrowserExtractedTurn = { text, roleHint, images, domPath };
+        const prev = byTurnId.get(turnId);
+        if (!prev || row.text.length > prev.row.text.length) {
+          byTurnId.set(turnId, { idx, row });
+        }
+      }
+    }
+
+    const minExpected = Math.max(3, Math.min(20, Math.floor(totalTurns * 0.02)));
+    if (byTurnId.size < minExpected) {
+      return [];
+    }
+
+    return Array.from(byTurnId.values())
+      .sort((a, b) => a.idx - b.idx)
+      .map((item) => item.row);
+  }, turnCount);
+}
+
+async function extractTurnsBySelectors(page: Page): Promise<BrowserExtractedTurn[]> {
   return page.evaluate(() => {
     const selectors = [
       "[data-message-id]",
@@ -183,13 +336,26 @@ async function extractTurns(page: Page): Promise<BrowserExtractedTurn[]> {
       for (const item of list) candidates.push(item);
     }
 
-    if (!candidates.length && document.body) {
-      candidates.push(document.body);
+    const uniqueCandidates = Array.from(new Set(candidates));
+    if (!uniqueCandidates.length && document.body) {
+      uniqueCandidates.push(document.body);
     }
+
+    const filteredCandidates = uniqueCandidates.filter((el) => {
+      for (const other of uniqueCandidates) {
+        if (other === el) continue;
+        if (!el.contains(other)) continue;
+        const childLen = (other.textContent ?? "").replace(/\s+/g, " ").trim().length;
+        if (childLen >= 120) {
+          return false;
+        }
+      }
+      return true;
+    });
 
     const dedupe = new Set<string>();
 
-    const mapped = candidates.map((el) => {
+    const mapped = filteredCandidates.map((el) => {
         const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
         if (text.length < 20) {
           return null;
@@ -204,6 +370,7 @@ async function extractTurns(page: Page): Promise<BrowserExtractedTurn[]> {
         dedupe.add(key);
 
         const roleHint =
+          (el.querySelector(".chat-turn-container") as HTMLElement | null)?.className ??
           el.getAttribute("data-role") ??
           el.getAttribute("aria-label") ??
           (el.querySelector("[aria-label]")?.getAttribute("aria-label") ?? undefined) ??
@@ -251,15 +418,41 @@ async function extractTurns(page: Page): Promise<BrowserExtractedTurn[]> {
   });
 }
 
-async function saveVisibleImages(page: Page, imagesDir: string): Promise<SavedImage[]> {
+async function saveVisibleImages(
+  page: Page,
+  imagesDir: string,
+  neededSrcs: Set<string>,
+  maxImageScreenshots: number,
+): Promise<SavedImage[]> {
+  if (maxImageScreenshots <= 0 || neededSrcs.size === 0) {
+    return [];
+  }
+
   const locator = page.locator("img");
   const total = await locator.count();
   const saved: SavedImage[] = [];
 
   for (let idx = 0; idx < total; idx += 1) {
+    if (saved.length >= maxImageScreenshots) {
+      break;
+    }
+
     const item = locator.nth(idx);
     const src = (await item.getAttribute("src")) ?? "";
     if (!src) {
+      continue;
+    }
+    if (!neededSrcs.has(src)) {
+      continue;
+    }
+    const alt = (await item.getAttribute("alt")) ?? undefined;
+    const normalizedSrc = src.toLowerCase();
+    const normalizedAlt = (alt ?? "").toLowerCase();
+    if (
+      normalizedSrc.includes("gstatic.com/aistudio/watermark/watermark.png") ||
+      normalizedAlt.includes("thinking") ||
+      normalizedAlt.includes("watermark")
+    ) {
       continue;
     }
 
@@ -267,7 +460,6 @@ async function saveVisibleImages(page: Page, imagesDir: string): Promise<SavedIm
       await item.scrollIntoViewIfNeeded();
       const localPath = path.join(imagesDir, `img-${String(saved.length + 1).padStart(5, "0")}.png`);
       await item.screenshot({ path: localPath });
-      const alt = (await item.getAttribute("alt")) ?? undefined;
       saved.push({ src, alt, localPath });
     } catch {
       // Ignore best-effort image save failure.

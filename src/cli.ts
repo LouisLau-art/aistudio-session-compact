@@ -26,7 +26,9 @@ program
   .option("--max-scroll-iterations <n>", "Max loading loops", parseIntValue, 220)
   .option("--stable-rounds <n>", "Stop after N stable rounds", parseIntValue, 6)
   .option("--scroll-wait-ms <n>", "Wait time per loop (ms)", parseIntValue, 900)
+  .option("--max-image-screenshots <n>", "Cap local image screenshots", parseIntValue, 80)
   .option("--tab-index <n>", "Pick a tab index explicitly", parseOptionalInt)
+  .option("--no-strict-capture", "Allow capture output even when quality gate fails")
   .action(async (opts) => {
     const result = await runCapture({
       cdpUrl: opts.cdpUrl,
@@ -35,7 +37,9 @@ program
       maxScrollIterations: opts.maxScrollIterations,
       stableRounds: opts.stableRounds,
       scrollWaitMs: opts.scrollWaitMs,
+      maxImageScreenshots: opts.maxImageScreenshots,
       tabIndex: opts.tabIndex,
+      strictCapture: opts.strictCapture,
     });
 
     console.log(`Captured ${result.turns.length} turns`);
@@ -127,12 +131,15 @@ program
   .option("--max-scroll-iterations <n>", "Max loading loops", parseIntValue, 220)
   .option("--stable-rounds <n>", "Stop after N stable rounds", parseIntValue, 6)
   .option("--scroll-wait-ms <n>", "Wait time per loop (ms)", parseIntValue, 900)
+  .option("--max-image-screenshots <n>", "Cap local image screenshots", parseIntValue, 80)
+  .option("--no-strict-capture", "Allow capture output even when quality gate fails")
   .action(async (opts) => {
     await runPipeline({
       outDir: path.resolve(opts.out),
       cdpUrl: opts.cdpUrl,
       urlMatch: opts.urlMatch,
       tabIndex: opts.tabIndex,
+      strictCapture: opts.strictCapture,
       model: opts.model,
       provider: opts.provider,
       ocrEngine: opts.ocrEngine,
@@ -145,6 +152,7 @@ program
       maxScrollIterations: opts.maxScrollIterations,
       stableRounds: opts.stableRounds,
       scrollWaitMs: opts.scrollWaitMs,
+      maxImageScreenshots: opts.maxImageScreenshots,
     });
 
     console.log(`Pipeline completed. Output dir: ${path.resolve(opts.out)}`);

@@ -8,18 +8,35 @@ export interface BrowserExtractedTurn {
 }
 
 const UI_NOISE_PATTERNS: RegExp[] = [
-  /\bmore_vert\b/gi,
+  /menu_open/gi,
+  /more_vert/gi,
   /\bedit\b/gi,
-  /\bthumb_up\b/gi,
-  /\bthumb_down\b/gi,
-  /\bchevron_(?:left|right)\b/gi,
-  /\bcompare_arrows\b/gi,
-  /\bkeyboard_return\b/gi,
-  /\badd_circle\b/gi,
-  /\bkey_off\b/gi,
-  /\bwidgets\b/gi,
+  /thumb_up/gi,
+  /thumb_down/gi,
+  /chevron_(?:left|right)/gi,
+  /compare_arrows/gi,
+  /keyboard_return/gi,
+  /add_circle/gi,
+  /key_off/gi,
+  /widgets/gi,
   /\btune\b/gi,
   /\bmenu\b/gi,
+];
+
+const NOISE_KEYWORDS = [
+  "more_vert",
+  "model thoughts",
+  "user docs",
+  "thumb_up",
+  "thumb_down",
+  "google ai models may make mistakes",
+  "skip to main content",
+  "toggle navigation",
+  "open options",
+  "expand_morehome",
+  "run ctrl",
+  "drop files here",
+  "tools",
 ];
 
 function normalizeSpace(input: string): string {
@@ -34,9 +51,13 @@ function cleanUiArtifacts(input: string): string {
   }
 
   text = text
+    .replace(/(?:^|\s)User docs[\s\S]{0,180}?\b\d[\d,]*\s*tokens?\b/gi, " ")
+    .replace(/(?:^|\s)docs[\s\S]{0,180}?\b\d[\d,]*\s*tokens?\b/gi, " ")
+    .replace(/\bModel Thoughts\b[\s\S]*$/gi, " ")
     .replace(/Google AI models may make mistakes[\s\S]*?return to the chat\./gi, " ")
     .replace(/Use Arrow Up and Arrow Down[\s\S]*?return to the chat\./gi, " ")
-    .replace(/Expand to view model thoughts/gi, " ");
+    .replace(/Expand to view model thoughts/gi, " ")
+    .replace(/sharecompare_arrowsaddmore_vertmore_vert/gi, " ");
 
   return normalizeSpace(text);
 }
@@ -47,12 +68,13 @@ function splitCompositeTurn(row: BrowserExtractedTurn): BrowserExtractedTurn[] {
     return [];
   }
 
-  const markerRegex = /\b(User|Model)\b(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM)?)?/gi;
+  const markerRegex = /(^|[\s])((?:User|Model))(?!['’])(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM)?)?/g;
   const markers: Array<{ role: "user" | "model"; index: number }> = [];
   let match: RegExpExecArray | null;
   while ((match = markerRegex.exec(text)) !== null) {
-    const role = match[1]?.toLowerCase() === "user" ? "user" : "model";
-    markers.push({ role, index: match.index });
+    const role = match[2]?.toLowerCase() === "user" ? "user" : "model";
+    const start = match.index + (match[1]?.length ?? 0);
+    markers.push({ role, index: start });
   }
 
   if (markers.length < 2) {
@@ -92,7 +114,34 @@ function isUiOnlyNoise(text: string): boolean {
   const meaningfulWords = normalized
     .split(/\s+/)
     .filter((token) => token.length > 1 && !/^(user|model|pm|am)$/.test(token));
-  return meaningfulWords.length < 2;
+  if (meaningfulWords.length < 2) {
+    return true;
+  }
+
+  if (/^model thoughts\b/i.test(normalized)) {
+    return true;
+  }
+  if (/^user docs\b/i.test(normalized) && /\btokens?\b/i.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
+function isLikelyNoisyTurn(text: string): boolean {
+  const normalized = normalizeSpace(text.toLowerCase());
+  if (!normalized) return true;
+  return NOISE_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+function isLikelyUiImage(image: { src: string; alt?: string }): boolean {
+  const src = image.src.toLowerCase();
+  const alt = (image.alt ?? "").toLowerCase();
+  return (
+    src.includes("gstatic.com/aistudio/watermark/watermark.png") ||
+    alt.includes("thinking") ||
+    alt.includes("watermark")
+  );
 }
 
 export function inferRole(roleHint: string | undefined, text: string): TurnRole {
@@ -135,13 +184,15 @@ export function normalizeBrowserTurns(
     const id = `t-${String(turns.length + 1).padStart(6, "0")}`;
     const role = inferRole(row.roleHint, text);
 
-    const images = row.images.map((img, imageIdx) => ({
-      id: `${id}-img-${String(imageIdx + 1).padStart(3, "0")}`,
-      messageId: id,
-      src: img.src,
-      alt: img.alt,
-      index: imageIdx,
-    }));
+    const images = row.images
+      .filter((img) => !isLikelyUiImage(img))
+      .map((img, imageIdx) => ({
+        id: `${id}-img-${String(imageIdx + 1).padStart(3, "0")}`,
+        messageId: id,
+        src: img.src,
+        alt: img.alt,
+        index: imageIdx,
+      }));
 
     turns.push({
       id,
@@ -155,6 +206,65 @@ export function normalizeBrowserTurns(
   }
 
   return turns;
+}
+
+export interface CaptureQuality {
+  turnCount: number;
+  unknownRoleCount: number;
+  unknownRoleRatio: number;
+  noiseCount: number;
+  noiseRatio: number;
+}
+
+export function assessCaptureQuality(turns: SessionTurn[]): CaptureQuality {
+  const turnCount = turns.length;
+  if (!turnCount) {
+    return {
+      turnCount: 0,
+      unknownRoleCount: 0,
+      unknownRoleRatio: 0,
+      noiseCount: 0,
+      noiseRatio: 0,
+    };
+  }
+
+  const unknownRoleCount = turns.filter((turn) => turn.role === "unknown").length;
+  const noiseCount = turns.filter((turn) => isLikelyNoisyTurn(turn.text)).length;
+
+  return {
+    turnCount,
+    unknownRoleCount,
+    unknownRoleRatio: unknownRoleCount / turnCount,
+    noiseCount,
+    noiseRatio: noiseCount / turnCount,
+  };
+}
+
+export function assertCaptureQuality(turns: SessionTurn[], strictCapture = true): void {
+  if (!strictCapture) {
+    return;
+  }
+
+  const quality = assessCaptureQuality(turns);
+  if (quality.turnCount === 0) {
+    throw new Error(
+      "Capture quality gate failed: no usable turns extracted. Use --no-strict-capture for raw debug output.",
+    );
+  }
+
+  const failedByTurnCount = quality.turnCount < 6;
+  const failedByNoise = quality.turnCount >= 10 && quality.noiseRatio > 0.22;
+  const failedByUnknownRole = quality.turnCount >= 10 && quality.unknownRoleRatio > 0.45;
+
+  if (failedByTurnCount || failedByNoise || failedByUnknownRole) {
+    throw new Error(
+      `Capture quality gate failed: turns=${quality.turnCount}, noiseRatio=${quality.noiseRatio.toFixed(
+        2,
+      )}, unknownRoleRatio=${quality.unknownRoleRatio.toFixed(
+        2,
+      )}. Use --no-strict-capture for raw debug output.`,
+    );
+  }
 }
 
 export function fallbackTextTurn(text: string, sourceUrl: string): SessionTurn[] {

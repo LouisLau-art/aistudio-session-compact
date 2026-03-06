@@ -62,6 +62,27 @@ describe("normalizeBrowserTurns", () => {
     expect(turns[0].images).toHaveLength(0);
   });
 
+  it("drops product-logo ui images from otherwise valid turns", () => {
+    const turns = normalizeBrowserTurns(
+      [
+        {
+          text: "User 这是一段足够长的正常正文，用来确认产品 logo 不会被当成聊天图片保留下来。",
+          roleHint: "user",
+          images: [
+            {
+              src: "https://www.gstatic.com/images/branding/productlogos/googleg/v6/24px.svg",
+              alt: "Google",
+            },
+          ],
+        },
+      ],
+      "https://aistudio.google.com/prompts/test",
+    );
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0].images).toHaveLength(0);
+  });
+
   it("drops model-thought traces with time prefixes and expand footer", () => {
     const turns = normalizeBrowserTurns(
       [

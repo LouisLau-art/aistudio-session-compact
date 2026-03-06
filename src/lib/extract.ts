@@ -186,6 +186,7 @@ function isLikelyUiImage(image: { src: string; alt?: string }): boolean {
   const alt = (image.alt ?? "").toLowerCase();
   return (
     src.includes("gstatic.com/aistudio/watermark/watermark.png") ||
+    src.includes("/images/branding/productlogos/") ||
     alt.includes("thinking") ||
     alt.includes("watermark")
   );

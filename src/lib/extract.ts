@@ -27,6 +27,7 @@ const NOISE_KEYWORDS = [
   "more_vert",
   "model thoughts",
   "user docs",
+  "expand to view",
   "thumb_up",
   "thumb_down",
   "google ai models may make mistakes",
@@ -57,15 +58,49 @@ function cleanUiArtifacts(input: string): string {
     .replace(/Google AI models may make mistakes[\s\S]*?return to the chat\./gi, " ")
     .replace(/Use Arrow Up and Arrow Down[\s\S]*?return to the chat\./gi, " ")
     .replace(/Expand to view model thoughts/gi, " ")
+    .replace(/\bExpand to view\b/gi, " ")
     .replace(/sharecompare_arrowsaddmore_vertmore_vert/gi, " ");
 
   return normalizeSpace(text);
+}
+
+function isModelThoughtTrace(text: string): boolean {
+  const normalized = normalizeSpace(text);
+  if (!normalized) {
+    return false;
+  }
+
+  const cueMatches =
+    normalized.match(
+      /\b(analyzing|assessing|formulating|refining|drafting|deconstructing|reframing|considering|focusing)\b/gi,
+    )?.length ?? 0;
+
+  if (/^model(?:\s+\d{1,2}:\d{2}\s*(?:am|pm)?)?\s+thoughts\b/i.test(normalized)) {
+    return true;
+  }
+  if (/^user\s+input\b/i.test(normalized) && (cueMatches > 0 || /\bi'?m\s+now\b/i.test(normalized))) {
+    return true;
+  }
+
+  const hasExpandFooter = /\bexpand to view\b/i.test(normalized);
+  const hasThoughtKeyword = /\bthoughts\b/i.test(normalized);
+  const hasChainCue =
+    /\b(i'?m currently|i'?m now|analyzing|assessing|drafting|formulating|refining|deconstructing|reframing)\b/i.test(
+      normalized,
+    );
+  if (hasExpandFooter && hasThoughtKeyword && hasChainCue) {
+    return true;
+  }
+  return cueMatches >= 3 && /\bi'?m\s+now\b/i.test(normalized);
 }
 
 function splitCompositeTurn(row: BrowserExtractedTurn): BrowserExtractedTurn[] {
   const text = cleanUiArtifacts(row.text);
   if (!text) {
     return [];
+  }
+  if (row.domPath?.startsWith("ms-chat-turn#")) {
+    return [{ ...row, text }];
   }
 
   const markerRegex = /(^|[\s])((?:User|Model))(?!['’])(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM)?)?/g;
@@ -119,6 +154,9 @@ function isUiOnlyNoise(text: string): boolean {
   }
 
   if (/^model thoughts\b/i.test(normalized)) {
+    return true;
+  }
+  if (isModelThoughtTrace(text)) {
     return true;
   }
   if (/^user docs\b/i.test(normalized) && /\btokens?\b/i.test(normalized)) {

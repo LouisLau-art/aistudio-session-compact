@@ -61,6 +61,53 @@ describe("normalizeBrowserTurns", () => {
     expect(turns[0].text).not.toContain("Model Thoughts");
     expect(turns[0].images).toHaveLength(0);
   });
+
+  it("drops model-thought traces with time prefixes and expand footer", () => {
+    const turns = normalizeBrowserTurns(
+      [
+        {
+          text: "Model 10:58 PM Thoughts Assessing User's Input I'm currently focused on the user's input and drafting response details. Expand to view",
+          roleHint: "chat-turn-container code-block-aligner model render ng-star-inserted",
+          images: [],
+        },
+      ],
+      "https://aistudio.google.com/prompts/test",
+    );
+
+    expect(turns).toHaveLength(0);
+  });
+
+  it("drops user-input thought traces without expand footer", () => {
+    const turns = normalizeBrowserTurns(
+      [
+        {
+          text: "User Input I'm currently analyzing this case. Assessing the signals and drafting a response while I'm now refining the approach.",
+          roleHint: "user",
+          images: [],
+        },
+      ],
+      "https://aistudio.google.com/prompts/test",
+    );
+
+    expect(turns).toHaveLength(0);
+  });
+
+  it("does not split ms-chat-turn rows by incidental model/user words", () => {
+    const turns = normalizeBrowserTurns(
+      [
+        {
+          text: "Model）：这是正文里引用到的一个词，不应该被切成新的 turn。",
+          roleHint: "chat-turn-container code-block-aligner model render ng-star-inserted",
+          domPath: "ms-chat-turn#turn-abc",
+          images: [],
+        },
+      ],
+      "https://aistudio.google.com/prompts/test",
+    );
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0].text).toContain("这是正文里引用到的一个词");
+  });
 });
 
 describe("capture quality gate", () => {

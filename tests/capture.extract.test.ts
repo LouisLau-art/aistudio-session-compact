@@ -108,6 +108,45 @@ describe("normalizeBrowserTurns", () => {
     expect(turns).toHaveLength(1);
     expect(turns[0].text).toContain("这是正文里引用到的一个词");
   });
+
+  it("removes inline code-toolbar artifact tokens", () => {
+    const turns = normalizeBrowserTurns(
+      [
+        {
+          text: "User 这是正文。 code Codedownloadcontent_copyexpand_less 后面还是正文。",
+          roleHint: "chat-turn-container code-block-aligner render user ng-star-inserted",
+          domPath: "ms-chat-turn#turn-code",
+          images: [],
+        },
+      ],
+      "https://aistudio.google.com/prompts/test",
+    );
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0].text).not.toContain("Codedownloadcontent_copyexpand_less");
+    expect(turns[0].text).not.toContain("content_copy");
+    expect(turns[0].text).toContain("这是正文");
+    expect(turns[0].text).toContain("后面还是正文");
+  });
+
+  it("removes plain code-download toolbar marker", () => {
+    const turns = normalizeBrowserTurns(
+      [
+        {
+          text: "User 正文开始。 code Codedownload 这里继续。",
+          roleHint: "chat-turn-container code-block-aligner render user ng-star-inserted",
+          domPath: "ms-chat-turn#turn-code-download",
+          images: [],
+        },
+      ],
+      "https://aistudio.google.com/prompts/test",
+    );
+
+    expect(turns).toHaveLength(1);
+    expect(turns[0].text).not.toMatch(/\bcodedownload\b/i);
+    expect(turns[0].text).toContain("正文开始");
+    expect(turns[0].text).toContain("这里继续");
+  });
 });
 
 describe("capture quality gate", () => {

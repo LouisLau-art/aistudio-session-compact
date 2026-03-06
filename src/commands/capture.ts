@@ -92,14 +92,19 @@ export async function runCapture(options: CaptureOptions): Promise<{
       turns,
     };
   } finally {
-    disconnectCdpConnection(browser);
+    await disconnectCdpConnection(browser);
   }
 }
 
-function disconnectCdpConnection(browser: Browser): void {
-  const conn = (browser as unknown as { _connection?: { close?: () => void } })._connection;
-  if (conn && typeof conn.close === "function") {
-    conn.close();
+async function disconnectCdpConnection(browser: Browser): Promise<void> {
+  try {
+    await browser.close();
+    return;
+  } catch {
+    const conn = (browser as unknown as { _connection?: { close?: () => void } })._connection;
+    if (conn && typeof conn.close === "function") {
+      conn.close();
+    }
   }
 }
 

@@ -10,6 +10,9 @@ export interface BrowserExtractedTurn {
 const UI_NOISE_PATTERNS: RegExp[] = [
   /menu_open/gi,
   /more_vert/gi,
+  /content_copy/gi,
+  /expand_less/gi,
+  /expand_more/gi,
   /\bedit\b/gi,
   /thumb_up/gi,
   /thumb_down/gi,
@@ -52,6 +55,12 @@ function cleanUiArtifacts(input: string): string {
   }
 
   text = text
+    .replace(/\bcode\s+codedownload(?:content_copy)?(?:expand_(?:less|more))?\b/gi, " ")
+    .replace(/\bcodedownload(?:content_copy)?(?:expand_(?:less|more))?\b/gi, " ")
+    .replace(/\bcode\s+codedownloadcontent_copy(?:expand_(?:less|more))?\b/gi, " ")
+    .replace(/codedownloadcontent_copy(?:expand_(?:less|more))?/gi, " ")
+    .replace(/\bcontent_copy(?:expand_(?:less|more))?\b/gi, " ")
+    .replace(/\bexpand_(?:less|more)\b/gi, " ")
     .replace(/(?:^|\s)User docs[\s\S]{0,180}?\b\d[\d,]*\s*tokens?\b/gi, " ")
     .replace(/(?:^|\s)docs[\s\S]{0,180}?\b\d[\d,]*\s*tokens?\b/gi, " ")
     .replace(/\bModel Thoughts\b[\s\S]*$/gi, " ")

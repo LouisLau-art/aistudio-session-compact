@@ -1,4 +1,12 @@
-import type { ChunkSummary, ContextCapsule, SessionTurn, TurnRole } from "../types.js";
+import type {
+  CapsuleDecision,
+  CapsuleFact,
+  CapsuleTimelineEntry,
+  ChunkSummary,
+  ContextCapsule,
+  SessionTurn,
+  TurnRole,
+} from "../types.js";
 
 function uniq(items: string[]): string[] {
   const seen = new Set<string>();
@@ -299,6 +307,149 @@ function selectTimelineChunks(
   return result.slice(-max);
 }
 
+function recentChunkWindowSize(totalChunks: number): number {
+  if (totalChunks <= 1) return totalChunks;
+  return Math.min(6, Math.max(2, Math.ceil(totalChunks * 0.35)));
+}
+
+function splitChunkWindows(
+  chunks: Array<{ turnIds: string[]; summary: ChunkSummary }>,
+): {
+  recentChunks: Array<{ turnIds: string[]; summary: ChunkSummary }>;
+  archiveChunks: Array<{ turnIds: string[]; summary: ChunkSummary }>;
+} {
+  const recentCount = recentChunkWindowSize(chunks.length);
+  return {
+    recentChunks: chunks.slice(-recentCount),
+    archiveChunks: chunks.slice(0, Math.max(0, chunks.length - recentCount)),
+  };
+}
+
+function collectStrings(
+  chunks: Array<{ turnIds: string[]; summary: ChunkSummary }>,
+  pick: (summary: ChunkSummary) => string[],
+  limit: number,
+): string[] {
+  return recentUnique(chunks.flatMap((chunk) => pick(chunk.summary)), limit);
+}
+
+function collectStableDecisionTexts(
+  chunks: Array<{ turnIds: string[]; summary: ChunkSummary }>,
+  recentChunks: Array<{ turnIds: string[]; summary: ChunkSummary }>,
+  limit: number,
+): string[] {
+  const recentKeys = new Set(
+    recentChunks.flatMap((chunk) => chunk.summary.decisions.map((decision) => decision.trim().toLowerCase())),
+  );
+
+  const stats = new Map<
+    string,
+    {
+      text: string;
+      count: number;
+      seenInRecent: boolean;
+      seenInArchive: boolean;
+      lastIndex: number;
+    }
+  >();
+
+  chunks.forEach((chunk, chunkIndex) => {
+    const uniqueChunkDecisions = uniq(chunk.summary.decisions);
+    for (const rawDecision of uniqueChunkDecisions) {
+      const decision = rawDecision.trim();
+      if (!decision) continue;
+
+      const key = decision.toLowerCase();
+      const entry = stats.get(key) ?? {
+        text: decision,
+        count: 0,
+        seenInRecent: false,
+        seenInArchive: false,
+        lastIndex: chunkIndex,
+      };
+
+      entry.count += 1;
+      entry.lastIndex = chunkIndex;
+      if (recentKeys.has(key)) {
+        entry.seenInRecent = true;
+      } else {
+        entry.seenInArchive = true;
+      }
+
+      stats.set(key, entry);
+    }
+  });
+
+  return Array.from(stats.values())
+    .filter((entry) => entry.count >= 2 || (entry.seenInRecent && entry.seenInArchive))
+    .sort((left, right) => {
+      if (right.lastIndex !== left.lastIndex) return right.lastIndex - left.lastIndex;
+      if (right.count !== left.count) return right.count - left.count;
+      return left.text.localeCompare(right.text);
+    })
+    .slice(0, limit)
+    .map((entry) => entry.text);
+}
+
+function toTimelineEntries(
+  turns: SessionTurn[],
+  chunks: Array<{ turnIds: string[]; summary: ChunkSummary }>,
+  max: number,
+): CapsuleTimelineEntry[] {
+  return selectTimelineChunks(chunks, max).map((chunk) => {
+    const firstTurn = turns.find((turn) => turn.id === chunk.turnIds[0]);
+    return {
+      turnId: chunk.turnIds[0] ?? "unknown",
+      role: firstTurn?.role ?? "unknown",
+      summary: shortText(chunk.summary.summary, 180),
+    };
+  });
+}
+
+function summarizeCurrentState(input: {
+  recentGoals: string[];
+  recentDecisions: string[];
+  recentConstraints: string[];
+  recentQuestions: string[];
+  recentTodos: string[];
+  recentFacts: string[];
+}): string {
+  const lines = [
+    input.recentGoals[0] ? `Current focus: ${input.recentGoals[0]}` : "",
+    input.recentDecisions[0] ? `Working stance: ${input.recentDecisions[0]}` : "",
+    input.recentConstraints[0] ? `Boundary: ${input.recentConstraints[0]}` : "",
+    input.recentQuestions[0] ? `Main unresolved question: ${input.recentQuestions[0]}` : "",
+    input.recentFacts[0] ? `Active fact: ${input.recentFacts[0]}` : "",
+    input.recentTodos[0] ? `Likely next continuation point: ${input.recentTodos[0]}` : "",
+  ].filter(Boolean);
+
+  return lines.length
+    ? lines.map((line, index) => `${index + 1}. ${shortText(line, 220)}`).join("\n")
+    : "(empty)";
+}
+
+function buildPrimarySessionSummary(input: {
+  currentSummary: string;
+  stableDecisions: string[];
+  recentConstraints: string[];
+  recentQuestions: string[];
+  recentTodos: string[];
+  recentFacts: string[];
+}): string {
+  const lines = [
+    input.currentSummary && input.currentSummary !== "(empty)" ? `Current state: ${input.currentSummary.replace(/\n/g, " ")}` : "",
+    input.stableDecisions.length ? `Stable decisions: ${input.stableDecisions.slice(0, 3).join("; ")}` : "",
+    input.recentFacts.length ? `Active facts: ${input.recentFacts.slice(0, 3).join("; ")}` : "",
+    input.recentConstraints.length ? `Active constraints: ${input.recentConstraints.slice(0, 3).join("; ")}` : "",
+    input.recentQuestions.length ? `Active open questions: ${input.recentQuestions.slice(0, 3).join("; ")}` : "",
+    input.recentTodos.length ? `Likely next topics: ${input.recentTodos.slice(0, 3).join("; ")}` : "",
+  ].filter(Boolean);
+
+  return lines.length
+    ? lines.map((line, index) => `${index + 1}. ${shortText(line, 220)}`).join("\n")
+    : "(empty)";
+}
+
 export function heuristicChunkSummary(turns: SessionTurn[]): ChunkSummary {
   const candidates = sentenceCandidates(turns);
   const userCandidates = candidates.filter((candidate) => candidate.role === "user");
@@ -369,21 +520,29 @@ export function buildContextCapsule(input: {
   modelUsed: string;
   mode: "llm" | "heuristic";
 }): ContextCapsule {
-  const allGoals = recentUnique(input.chunkSummaries.flatMap((chunk) => chunk.summary.goals), 8);
-  const allDecisions = recentUnique(input.chunkSummaries.flatMap((chunk) => chunk.summary.decisions), 8);
-  const allConstraints = recentUnique(input.chunkSummaries.flatMap((chunk) => chunk.summary.constraints), 6);
-  const allQuestions = recentUnique(input.chunkSummaries.flatMap((chunk) => chunk.summary.openQuestions), 6);
-  const allTodos = recentUnique(input.chunkSummaries.flatMap((chunk) => chunk.summary.todos), 6);
-  const allFacts = recentUnique(input.chunkSummaries.flatMap((chunk) => chunk.summary.keyFacts), 8);
+  const { recentChunks, archiveChunks } = splitChunkWindows(input.chunkSummaries);
 
-  const structuredSummaryLines = [
-    allGoals.length ? `Recent user goals: ${allGoals.slice(0, 3).join("; ")}` : "",
-    allDecisions.length ? `Working decisions: ${allDecisions.slice(0, 3).join("; ")}` : "",
-    allConstraints.length ? `Active constraints: ${allConstraints.slice(0, 3).join("; ")}` : "",
-    allQuestions.length ? `Latest open questions: ${allQuestions.slice(0, 3).join("; ")}` : "",
-    allTodos.length ? `Next actions under discussion: ${allTodos.slice(0, 3).join("; ")}` : "",
-  ]
-    .filter(Boolean);
+  const recentGoals = collectStrings(recentChunks, (summary) => summary.goals, 6);
+  const recentDecisions = collectStrings(recentChunks, (summary) => summary.decisions, 6);
+  const recentConstraints = collectStrings(recentChunks, (summary) => summary.constraints, 6);
+  const recentQuestions = collectStrings(recentChunks, (summary) => summary.openQuestions, 6);
+  const recentTodos = collectStrings(recentChunks, (summary) => summary.todos, 6);
+  const recentFacts = collectStrings(recentChunks, (summary) => summary.keyFacts, 6);
+
+  const allDecisions = recentUnique(input.chunkSummaries.flatMap((chunk) => chunk.summary.decisions), 8);
+  const stableDecisionTexts = collectStableDecisionTexts(input.chunkSummaries, recentChunks, 8);
+  const archivedGoals = collectStrings(archiveChunks, (summary) => summary.goals, 6);
+  const archivedQuestions = collectStrings(archiveChunks, (summary) => summary.openQuestions, 6);
+  const archivedFacts = collectStrings(archiveChunks, (summary) => summary.keyFacts, 6);
+
+  const currentSummary = summarizeCurrentState({
+    recentGoals,
+    recentDecisions,
+    recentConstraints,
+    recentQuestions,
+    recentTodos,
+    recentFacts,
+  });
 
   const fallbackSummary = sampleAcross(
     uniq(input.chunkSummaries.map((chunk) => chunk.summary.summary)).filter(Boolean),
@@ -392,9 +551,15 @@ export function buildContextCapsule(input: {
     .map((line, index) => `${index + 1}. ${shortText(line, 220)}`)
     .join("\n");
 
-  const sessionSummary = structuredSummaryLines.length
-    ? structuredSummaryLines.map((line, index) => `${index + 1}. ${shortText(line, 220)}`).join("\n")
-    : fallbackSummary;
+  const primarySummary = buildPrimarySessionSummary({
+    currentSummary,
+    stableDecisions: stableDecisionTexts,
+    recentConstraints,
+    recentQuestions,
+    recentTodos,
+    recentFacts,
+  });
+  const sessionSummary = primarySummary !== "(empty)" ? primarySummary : fallbackSummary;
 
   const evidenceFor = (needle: string): string[] => {
     const tokens = Array.from(
@@ -407,24 +572,32 @@ export function buildContextCapsule(input: {
       .map((turn) => turn.id);
   };
 
+  const toDecisionRecords = (items: string[]): CapsuleDecision[] =>
+    items.map((decision) => ({
+      decision,
+      evidenceTurnIds: evidenceFor(decision),
+    }));
+
+  const toFactRecords = (items: string[]): CapsuleFact[] =>
+    items.map((fact) => ({
+      fact,
+      evidenceTurnIds: evidenceFor(fact),
+    }));
+
   const resumeBrief = [
     "Continue the same project with the existing constraints and decisions.",
-    allGoals.length ? `Top goals: ${allGoals.slice(0, 5).join("; ")}` : "",
-    allDecisions.length ? `Locked decisions: ${allDecisions.slice(0, 5).join("; ")}` : "",
-    allConstraints.length ? `Constraints: ${allConstraints.slice(0, 5).join("; ")}` : "",
-    allQuestions.length ? `Open questions: ${allQuestions.slice(0, 5).join("; ")}` : "",
+    recentGoals.length ? `Current objectives: ${recentGoals.slice(0, 5).join("; ")}` : "",
+    stableDecisionTexts.length ? `Stable decisions: ${stableDecisionTexts.slice(0, 5).join("; ")}` : "",
+    recentFacts.length ? `Active facts: ${recentFacts.slice(0, 5).join("; ")}` : "",
+    recentConstraints.length ? `Constraints: ${recentConstraints.slice(0, 5).join("; ")}` : "",
+    recentQuestions.length ? `Open questions: ${recentQuestions.slice(0, 5).join("; ")}` : "",
+    recentTodos.length ? `Next topics: ${recentTodos.slice(0, 5).join("; ")}` : "",
   ]
     .filter(Boolean)
     .join("\n");
 
-  const timeline = selectTimelineChunks(input.chunkSummaries, 10).map((chunk) => {
-    const firstTurn = input.turns.find((turn) => turn.id === chunk.turnIds[0]);
-    return {
-      turnId: chunk.turnIds[0] ?? "unknown",
-      role: firstTurn?.role ?? "unknown",
-      summary: shortText(chunk.summary.summary, 180),
-    };
-  });
+  const timeline = toTimelineEntries(input.turns, input.chunkSummaries, 10);
+  const recentTimeline = toTimelineEntries(input.turns, recentChunks, 6);
 
   return {
     meta: {
@@ -437,19 +610,32 @@ export function buildContextCapsule(input: {
       mode: input.mode,
     },
     sessionSummary,
-    goals: allGoals,
-    decisions: allDecisions.map((decision) => ({
-      decision,
-      evidenceTurnIds: evidenceFor(decision),
-    })),
-    constraints: allConstraints,
-    openQuestions: allQuestions,
-    todos: allTodos,
-    keyFacts: allFacts.map((fact) => ({
-      fact,
-      evidenceTurnIds: evidenceFor(fact),
-    })),
+    background: {
+      summary: "",
+      emotionalContext: [],
+      workingFrames: [],
+    },
+    peopleMap: [],
+    currentState: {
+      summary: currentSummary,
+      currentObjectives: recentGoals,
+      currentStance: recentUnique([...recentDecisions, ...recentConstraints], 6),
+      nextTopics: recentUnique([...recentQuestions, ...recentTodos], 6),
+    },
+    goals: recentGoals,
+    decisions: toDecisionRecords(allDecisions),
+    stableDecisions: toDecisionRecords(stableDecisionTexts),
+    constraints: recentConstraints,
+    openQuestions: recentQuestions,
+    todos: recentTodos,
+    keyFacts: toFactRecords(recentFacts),
     timeline,
+    recentTimeline,
+    appendix: {
+      archivedGoals,
+      archivedQuestions,
+      archivedFacts,
+    },
     resumeBrief,
   };
 }

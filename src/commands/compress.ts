@@ -1,4 +1,5 @@
 import { buildContextCapsule, heuristicChunkSummary } from "../lib/capsule.js";
+import { applyBriefing, readBriefingFile } from "../lib/briefing.js";
 import { chunkTurnsByChars } from "../lib/chunking.js";
 import { readNdjson, writeJson } from "../lib/fs.js";
 import type { ChunkSummary, ContextCapsule, ImageEnrichment, SessionTurn } from "../types.js";
@@ -6,6 +7,7 @@ import type { ChunkSummary, ContextCapsule, ImageEnrichment, SessionTurn } from 
 export interface CompressOptions {
   rawPath: string;
   imagesPath?: string;
+  briefingPath?: string;
   outPath: string;
   chunkChars: number;
 }
@@ -38,8 +40,11 @@ export async function runCompress(options: CompressOptions): Promise<{ outPath: 
     mode: "heuristic",
   });
 
-  await writeJson(options.outPath, capsule);
-  return { outPath: options.outPath, capsule };
+  const briefing = options.briefingPath ? await readBriefingFile(options.briefingPath) : undefined;
+  const augmentedCapsule = applyBriefing(capsule, briefing);
+
+  await writeJson(options.outPath, augmentedCapsule);
+  return { outPath: options.outPath, capsule: augmentedCapsule };
 }
 
 function attachImageEnrichment(turns: SessionTurn[], images: ImageEnrichment[]): void {

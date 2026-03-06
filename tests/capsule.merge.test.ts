@@ -214,6 +214,238 @@ describe("buildContextCapsule", () => {
 
     expect(capsule.sessionSummary).toContain("Fallback chunk summary");
   });
+
+  it("builds current state from recent chunks and archives older material separately", () => {
+    const turns: SessionTurn[] = Array.from({ length: 6 }, (_, index) => ({
+      id: `t-${String(index + 1).padStart(6, "0")}`,
+      order: index,
+      role: index % 2 === 0 ? "user" : "model",
+      text: `turn ${index + 1}`,
+      sourceUrl: "https://example.com",
+      images: [],
+    }));
+
+    const capsule = buildContextCapsule({
+      rawPath: "raw.ndjson",
+      turns,
+      chunkSummaries: [
+        {
+          turnIds: ["t-000001"],
+          summary: {
+            summary: "Old phase: user keeps replaying historical details.",
+            goals: ["Reconstruct the whole history"],
+            decisions: ["Keep collecting old evidence"],
+            constraints: [],
+            openQuestions: ["What exactly happened in January?"],
+            todos: [],
+            keyFacts: ["Older conflict details"],
+          },
+        },
+        {
+          turnIds: ["t-000003"],
+          summary: {
+            summary: "Middle phase: user starts leaning toward distance.",
+            goals: [],
+            decisions: ["Reduce unnecessary contact"],
+            constraints: [],
+            openQuestions: [],
+            todos: [],
+            keyFacts: [],
+          },
+        },
+        {
+          turnIds: ["t-000005"],
+          summary: {
+            summary: "Recent phase: user wants to reduce contact, stop overexplaining, and continue recovery.",
+            goals: ["Reduce contact and continue recovery"],
+            decisions: ["Stop overexplaining"],
+            constraints: ["Do not reopen old arguments"],
+            openQuestions: ["Should the user fully disengage now?"],
+            todos: ["Continue with a low-reactivity stance"],
+            keyFacts: ["The user is less emotionally activated now"],
+          },
+        },
+      ],
+      modelUsed: "x",
+      mode: "heuristic",
+    });
+
+    expect(capsule.currentState.summary).toContain("Reduce contact");
+    expect(capsule.currentState.currentObjectives).toContain("Reduce contact and continue recovery");
+    expect(capsule.currentState.currentStance).toContain("Stop overexplaining");
+    expect(capsule.currentState.nextTopics).toContain("Should the user fully disengage now?");
+    expect(capsule.appendix.archivedGoals).toContain("Reconstruct the whole history");
+    expect(capsule.appendix.archivedQuestions).toContain("What exactly happened in January?");
+  });
+
+  it("builds stable decisions separately from recent timeline", () => {
+    const turns: SessionTurn[] = Array.from({ length: 8 }, (_, index) => ({
+      id: `t-${String(index + 1).padStart(6, "0")}`,
+      order: index,
+      role: index % 2 === 0 ? "user" : "model",
+      text: `turn ${index + 1}`,
+      sourceUrl: "https://example.com",
+      images: [],
+    }));
+
+    const chunkSummaries = [
+      {
+        turnIds: ["t-000001"],
+        summary: {
+          summary: "Old phase",
+          goals: [],
+          decisions: ["Do not overexplain"],
+          constraints: [],
+          openQuestions: [],
+          todos: [],
+          keyFacts: [],
+        },
+      },
+      {
+        turnIds: ["t-000003"],
+        summary: {
+          summary: "Middle phase",
+          goals: [],
+          decisions: ["Do not overexplain"],
+          constraints: [],
+          openQuestions: [],
+          todos: [],
+          keyFacts: [],
+        },
+      },
+      {
+        turnIds: ["t-000005"],
+        summary: {
+          summary: "Recent phase 1",
+          goals: [],
+          decisions: ["Reduce contact"],
+          constraints: [],
+          openQuestions: [],
+          todos: [],
+          keyFacts: [],
+        },
+      },
+      {
+        turnIds: ["t-000007"],
+        summary: {
+          summary: "Recent phase 2",
+          goals: [],
+          decisions: ["Reduce contact"],
+          constraints: [],
+          openQuestions: [],
+          todos: [],
+          keyFacts: [],
+        },
+      },
+    ] satisfies Array<{ turnIds: string[]; summary: ChunkSummary }>;
+
+    const capsule = buildContextCapsule({
+      rawPath: "raw.ndjson",
+      turns,
+      chunkSummaries,
+      modelUsed: "x",
+      mode: "heuristic",
+    });
+
+    expect(capsule.stableDecisions.map((item) => item.decision)).toContain("Reduce contact");
+    expect(capsule.stableDecisions.map((item) => item.decision)).toContain("Do not overexplain");
+    expect(capsule.recentTimeline.map((item) => item.turnId)).toEqual(["t-000005", "t-000007"]);
+  });
+
+  it("keeps active facts even when recent goals exist", () => {
+    const turns: SessionTurn[] = Array.from({ length: 4 }, (_, index) => ({
+      id: `t-${String(index + 1).padStart(6, "0")}`,
+      order: index,
+      role: index % 2 === 0 ? "user" : "model",
+      text: `turn ${index + 1}`,
+      sourceUrl: "https://example.com",
+      images: [],
+    }));
+
+    const capsule = buildContextCapsule({
+      rawPath: "raw.ndjson",
+      turns,
+      chunkSummaries: [
+        {
+          turnIds: ["t-000001"],
+          summary: {
+            summary: "Recent chunk",
+            goals: ["Continue the migration work"],
+            decisions: ["Use the local heuristic baseline"],
+            constraints: [],
+            openQuestions: [],
+            todos: ["Check the next continuation point"],
+            keyFacts: ["Workspace is read-only"],
+          },
+        },
+      ],
+      modelUsed: "x",
+      mode: "heuristic",
+    });
+
+    expect(capsule.keyFacts.map((item) => item.fact)).toContain("Workspace is read-only");
+    expect(capsule.currentState.summary).toContain("Workspace is read-only");
+  });
+
+  it("does not mark one-off decisions as stable", () => {
+    const turns: SessionTurn[] = Array.from({ length: 6 }, (_, index) => ({
+      id: `t-${String(index + 1).padStart(6, "0")}`,
+      order: index,
+      role: index % 2 === 0 ? "user" : "model",
+      text: `turn ${index + 1}`,
+      sourceUrl: "https://example.com",
+      images: [],
+    }));
+
+    const capsule = buildContextCapsule({
+      rawPath: "raw.ndjson",
+      turns,
+      chunkSummaries: [
+        {
+          turnIds: ["t-000001"],
+          summary: {
+            summary: "Old idea",
+            goals: [],
+            decisions: ["Keep collecting old evidence"],
+            constraints: [],
+            openQuestions: [],
+            todos: [],
+            keyFacts: [],
+          },
+        },
+        {
+          turnIds: ["t-000003"],
+          summary: {
+            summary: "Repeated decision",
+            goals: [],
+            decisions: ["Reduce contact"],
+            constraints: [],
+            openQuestions: [],
+            todos: [],
+            keyFacts: [],
+          },
+        },
+        {
+          turnIds: ["t-000005"],
+          summary: {
+            summary: "Repeated decision again",
+            goals: [],
+            decisions: ["Reduce contact"],
+            constraints: [],
+            openQuestions: [],
+            todos: [],
+            keyFacts: [],
+          },
+        },
+      ],
+      modelUsed: "x",
+      mode: "heuristic",
+    });
+
+    expect(capsule.decisions.map((item) => item.decision)).toContain("Keep collecting old evidence");
+    expect(capsule.stableDecisions.map((item) => item.decision)).toContain("Reduce contact");
+    expect(capsule.stableDecisions.map((item) => item.decision)).not.toContain("Keep collecting old evidence");
+  });
 });
 
 describe("heuristicChunkSummary", () => {

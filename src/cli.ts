@@ -83,12 +83,14 @@ program
   .description("Compress captured session into context capsule (heuristic)")
   .requiredOption("--raw <path>", "Path to session.raw.ndjson")
   .option("--images <path>", "Path to images.enriched.jsonl")
+  .option("--briefing <path>", "Optional JSON briefing with background + people map")
   .option("--out <path>", "Output context_capsule.json", "./out/context_capsule.json")
   .option("--chunk-chars <n>", "Chunk size by chars", parseIntValue, 20000)
   .action(async (opts) => {
     const result = await runCompress({
       rawPath: path.resolve(opts.raw),
       imagesPath: opts.images ? path.resolve(opts.images) : undefined,
+      briefingPath: opts.briefing ? path.resolve(opts.briefing) : undefined,
       outPath: path.resolve(opts.out),
       chunkChars: opts.chunkChars,
     });
@@ -101,10 +103,12 @@ program
   .command("handoff")
   .description("Generate markdown handoff + resume prompt")
   .requiredOption("--capsule <path>", "Path to context_capsule.json")
+  .option("--briefing <path>", "Optional JSON briefing with background + people map")
   .option("--out-dir <dir>", "Output directory", "./out")
   .action(async (opts) => {
     const result = await runHandoff({
       capsulePath: path.resolve(opts.capsule),
+      briefingPath: opts.briefing ? path.resolve(opts.briefing) : undefined,
       outDir: path.resolve(opts.outDir),
     });
 
@@ -118,6 +122,7 @@ program
   .option("--cdp-url <url>", "Chrome CDP endpoint", "http://127.0.0.1:9222")
   .option("--url-match <text>", "URL match for target tab", "aistudio.google.com/prompts/")
   .option("--tab-index <n>", "Pick a tab index explicitly", parseOptionalInt)
+  .option("--briefing <path>", "Optional JSON briefing with background + people map")
   .option("--out <dir>", "Output directory", "./out")
   .option("--provider <name>", "Vision provider: auto|doubao|none", parseVisionProvider, "auto")
   .option("--ocr-engine <name>", "OCR engine: auto|tesseract|paddle", parseOcrEngine, "auto")
@@ -139,6 +144,7 @@ program
       cdpUrl: opts.cdpUrl,
       urlMatch: opts.urlMatch,
       tabIndex: opts.tabIndex,
+      briefingPath: opts.briefing ? path.resolve(opts.briefing) : undefined,
       strictCapture: opts.strictCapture,
       model: opts.model,
       provider: opts.provider,

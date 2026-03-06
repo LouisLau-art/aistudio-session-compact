@@ -42,6 +42,34 @@ export interface ChunkSummary {
   keyFacts: string[];
 }
 
+export interface CapsuleDecision {
+  decision: string;
+  evidenceTurnIds: string[];
+}
+
+export interface CapsuleFact {
+  fact: string;
+  evidenceTurnIds: string[];
+}
+
+export interface CapsuleTimelineEntry {
+  turnId: string;
+  role: TurnRole;
+  summary: string;
+}
+
+export interface CapsuleBackground {
+  summary: string;
+  emotionalContext: string[];
+  workingFrames: string[];
+}
+
+export interface CapsulePerson {
+  name: string;
+  relation: string;
+  notes?: string;
+}
+
 export interface ContextCapsule {
   meta: {
     createdAt: string;
@@ -53,13 +81,28 @@ export interface ContextCapsule {
     mode: "llm" | "heuristic";
   };
   sessionSummary: string;
+  background: CapsuleBackground;
+  peopleMap: CapsulePerson[];
+  currentState: {
+    summary: string;
+    currentObjectives: string[];
+    currentStance: string[];
+    nextTopics: string[];
+  };
   goals: string[];
-  decisions: Array<{ decision: string; evidenceTurnIds: string[] }>;
+  decisions: CapsuleDecision[];
+  stableDecisions: CapsuleDecision[];
   constraints: string[];
   openQuestions: string[];
   todos: string[];
-  keyFacts: Array<{ fact: string; evidenceTurnIds: string[] }>;
-  timeline: Array<{ turnId: string; role: TurnRole; summary: string }>;
+  keyFacts: CapsuleFact[];
+  timeline: CapsuleTimelineEntry[];
+  recentTimeline: CapsuleTimelineEntry[];
+  appendix: {
+    archivedGoals: string[];
+    archivedQuestions: string[];
+    archivedFacts: string[];
+  };
   resumeBrief: string;
 }
 

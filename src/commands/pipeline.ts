@@ -13,6 +13,7 @@ export interface PipelineOptions {
   cdpUrl: string;
   urlMatch: string;
   tabIndex?: number;
+  briefingPath?: string;
   strictCapture?: boolean;
   model: string;
   provider: VisionProvider;
@@ -61,6 +62,7 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
   const compress = await runCompress({
     rawPath: capture.rawPath,
     imagesPath: imagesOut,
+    briefingPath: options.briefingPath,
     outPath: compressionOut,
     chunkChars: options.chunkChars,
   });

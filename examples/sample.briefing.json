@@ -1,0 +1,22 @@
+{
+  "background": {
+    "summary": "The user is continuing a long-running personal analysis conversation and wants continuity without re-explaining the full backstory.",
+    "emotionalContext": [
+      "The user is under emotional strain and uses the model as a continuity layer for reflection.",
+      "The handoff should preserve interpersonal context instead of flattening the story into generic advice."
+    ],
+    "workingFrames": ["relationship analysis", "psychoanalytic framing"]
+  },
+  "peopleMap": [
+    {
+      "name": "Primary person",
+      "relation": "Central person in the story",
+      "notes": "The user keeps returning to this relationship as the main source of pain and analysis."
+    },
+    {
+      "name": "Roommate",
+      "relation": "Recurring side character",
+      "notes": "Matters because shared living context shapes the user's behavior and interpretation."
+    }
+  ]
+}

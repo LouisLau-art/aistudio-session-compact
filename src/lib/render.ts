@@ -30,6 +30,9 @@ export function renderHandoffMarkdown(capsule: ContextCapsule): string {
     "## Key Facts",
     ...toBullets(capsule.keyFacts.map((item) => item.fact)),
     "",
+    "## Timeline Checkpoints",
+    ...toBullets(capsule.timeline.map((item) => `${item.turnId} (${item.role}): ${item.summary}`)),
+    "",
     "## Resume Brief",
     capsule.resumeBrief,
     "",
@@ -37,8 +40,6 @@ export function renderHandoffMarkdown(capsule: ContextCapsule): string {
 }
 
 export function renderResumePrompt(capsule: ContextCapsule): string {
-  const payload = JSON.stringify(capsule, null, 2);
-
   return [
     "You are continuing an existing long-running discussion.",
     "Do not restart the project from scratch.",
@@ -51,10 +52,32 @@ export function renderResumePrompt(capsule: ContextCapsule): string {
     "3. Address open questions before proposing new architecture.",
     "4. Continue from the latest TODOs.",
     "",
-    "Context capsule JSON:",
-    "```json",
-    payload,
-    "```",
+    "## Session Summary",
+    capsule.sessionSummary || "(empty)",
+    "",
+    "## Goals",
+    ...toBullets(capsule.goals),
+    "",
+    "## Locked Decisions",
+    ...toBullets(capsule.decisions.map((item) => item.decision)),
+    "",
+    "## Constraints",
+    ...toBullets(capsule.constraints),
+    "",
+    "## Open Questions",
+    ...toBullets(capsule.openQuestions),
+    "",
+    "## TODOs",
+    ...toBullets(capsule.todos),
+    "",
+    "## Key Facts",
+    ...toBullets(capsule.keyFacts.map((item) => item.fact)),
+    "",
+    "## Timeline Checkpoints",
+    ...toBullets(capsule.timeline.map((item) => `${item.turnId} (${item.role}): ${item.summary}`)),
+    "",
+    "## Resume Brief",
+    capsule.resumeBrief || "(empty)",
   ].join("\n");
 }
 

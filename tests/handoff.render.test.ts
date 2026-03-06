@@ -32,9 +32,11 @@ describe("render output", () => {
     expect(text).toContain("Decision A");
   });
 
-  it("renders resume prompt with JSON block", () => {
+  it("renders resume prompt as compact markdown context", () => {
     const text = renderResumePrompt(fixture);
-    expect(text).toContain("Context capsule JSON");
-    expect(text).toContain("```json");
+    expect(text).toContain("## Session Summary");
+    expect(text).toContain("## Goals");
+    expect(text).not.toContain("Context capsule JSON");
+    expect(text).not.toContain("```json");
   });
 });

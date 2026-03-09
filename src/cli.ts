@@ -6,6 +6,7 @@ import { runCapture } from "./commands/capture.js";
 import { runCompress } from "./commands/compress.js";
 import type { VisionProvider } from "./commands/enrichImages.js";
 import { runEnrichImages } from "./commands/enrichImages.js";
+import { runExportTranscript } from "./commands/exportTranscript.js";
 import { runHandoff } from "./commands/handoff.js";
 import { runPipeline } from "./commands/pipeline.js";
 import { runTranscript } from "./commands/transcript.js";
@@ -181,6 +182,52 @@ program
     });
 
     console.log(`Pipeline completed. Output dir: ${path.resolve(opts.out)}`);
+  });
+
+program
+  .command("export-transcript")
+  .description("Run capture -> enrich-images -> transcript export")
+  .option("--cdp-url <url>", "Chrome CDP endpoint", "http://127.0.0.1:9222")
+  .option("--url-match <text>", "URL match for target tab", "aistudio.google.com/prompts/")
+  .option("--tab-index <n>", "Pick a tab index explicitly", parseOptionalInt)
+  .option("--out <dir>", "Output directory", "./out")
+  .option("--provider <name>", "Vision provider: auto|doubao|none", parseVisionProvider, "auto")
+  .option("--ocr-engine <name>", "OCR engine: auto|tesseract|paddle", parseOcrEngine, "auto")
+  .option("--model <model>", "Vision model id", process.env.VISION_MODEL ?? "vision-model")
+  .option("--disable-ocr", "Disable local Tesseract OCR", false)
+  .option("--ocr-lang <lang>", "Tesseract OCR language", process.env.OCR_LANG ?? "eng+chi_sim")
+  .option("--python-bin <path>", "Python binary for PaddleOCR sidecar", process.env.OCR_PYTHON_BIN ?? "python3")
+  .option("--doubao-api-key <key>", "Doubao API key")
+  .option("--doubao-base-url <url>", "Doubao/OpenAI-compatible base URL", process.env.DOUBAO_BASE_URL)
+  .option("--max-scroll-iterations <n>", "Max loading loops", parseIntValue, 220)
+  .option("--stable-rounds <n>", "Stop after N stable rounds", parseIntValue, 6)
+  .option("--scroll-wait-ms <n>", "Wait time per loop (ms)", parseIntValue, 900)
+  .option("--max-image-screenshots <n>", "Cap local image screenshots", parseIntValue, 80)
+  .option("--no-strict-capture", "Allow capture output even when quality gate fails")
+  .action(async (opts) => {
+    const result = await runExportTranscript({
+      outDir: path.resolve(opts.out),
+      cdpUrl: opts.cdpUrl,
+      urlMatch: opts.urlMatch,
+      tabIndex: opts.tabIndex,
+      strictCapture: opts.strictCapture,
+      model: opts.model,
+      provider: opts.provider,
+      ocrEngine: opts.ocrEngine,
+      enableOcr: !opts.disableOcr,
+      ocrLang: opts.ocrLang,
+      pythonBin: opts.pythonBin,
+      doubaoApiKey: opts.doubaoApiKey,
+      doubaoBaseUrl: opts.doubaoBaseUrl,
+      maxScrollIterations: opts.maxScrollIterations,
+      stableRounds: opts.stableRounds,
+      scrollWaitMs: opts.scrollWaitMs,
+      maxImageScreenshots: opts.maxImageScreenshots,
+    });
+
+    console.log(`Transcript text: ${result.transcriptTxtPath}`);
+    console.log(`Transcript markdown: ${result.transcriptMdPath}`);
+    console.log(`Report: ${result.reportPath}`);
   });
 
 program.parseAsync(process.argv).catch((error) => {

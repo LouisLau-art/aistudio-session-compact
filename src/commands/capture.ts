@@ -140,15 +140,20 @@ export async function runCapture(options: CaptureOptions): Promise<{
   }
 }
 
-async function disconnectCdpConnection(browser: Browser): Promise<void> {
+export async function disconnectCdpConnection(browser: Browser): Promise<void> {
+  const maybeConnection = (browser as unknown as { _connection?: { close?: () => void } })._connection;
+  const shouldCloseConnectionOnClose = Boolean(
+    (browser as unknown as { _shouldCloseConnectionOnClose?: boolean })._shouldCloseConnectionOnClose,
+  );
+
   try {
     await browser.close();
-    return;
   } catch {
-    const conn = (browser as unknown as { _connection?: { close?: () => void } })._connection;
-    if (conn && typeof conn.close === "function") {
-      conn.close();
-    }
+    // Ignore close errors and fall through to best-effort connection shutdown.
+  }
+
+  if (!shouldCloseConnectionOnClose && maybeConnection && typeof maybeConnection.close === "function") {
+    maybeConnection.close();
   }
 }
 

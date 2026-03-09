@@ -4,6 +4,7 @@ import {
   buildImageCapturePath,
   buildObservedTurnKey,
   buildSweepStep,
+  disconnectCdpConnection,
   mergeObservedTurn,
   pickExtractResult,
   planVirtualSweep,
@@ -212,5 +213,43 @@ describe("pickExtractResult", () => {
     );
 
     expect(picked.savedImages).toEqual([]);
+  });
+});
+
+describe("disconnectCdpConnection", () => {
+  it("force-closes the underlying connection for CDP browsers after browser.close resolves", async () => {
+    let connectionClosed = 0;
+    let browserClosed = 0;
+
+    await disconnectCdpConnection({
+      close: async () => {
+        browserClosed += 1;
+      },
+      _shouldCloseConnectionOnClose: false,
+      _connection: {
+        close: () => {
+          connectionClosed += 1;
+        },
+      },
+    } as never);
+
+    expect(browserClosed).toBe(1);
+    expect(connectionClosed).toBe(1);
+  });
+
+  it("does not double-close the underlying connection when Playwright already owns that close path", async () => {
+    let connectionClosed = 0;
+
+    await disconnectCdpConnection({
+      close: async () => {},
+      _shouldCloseConnectionOnClose: true,
+      _connection: {
+        close: () => {
+          connectionClosed += 1;
+        },
+      },
+    } as never);
+
+    expect(connectionClosed).toBe(0);
   });
 });

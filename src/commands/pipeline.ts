@@ -44,7 +44,6 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
   });
 
   const imagesOut = path.join(options.outDir, "images.enriched.jsonl");
-  const compressionOut = path.join(options.outDir, "context_capsule.json");
 
   await runEnrichImages({
     rawPath: capture.rawPath,
@@ -63,12 +62,13 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
     rawPath: capture.rawPath,
     imagesPath: imagesOut,
     briefingPath: options.briefingPath,
-    outPath: compressionOut,
-    chunkChars: options.chunkChars,
+    outDir: options.outDir,
   });
 
   const handoff = await runHandoff({
-    capsulePath: compress.outPath,
+    snapshotPath: compress.snapshotPath,
+    tailPath: compress.tailPath,
+    briefingPath: options.briefingPath,
     outDir: options.outDir,
   });
 
@@ -76,7 +76,8 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
     generatedAt: new Date().toISOString(),
     rawPath: capture.rawPath,
     imagesPath: imagesOut,
-    capsulePath: compress.outPath,
+    snapshotPath: compress.snapshotPath,
+    tailPath: compress.tailPath,
     handoffPath: handoff.handoffPath,
     resumePromptPath: handoff.resumePromptPath,
   });

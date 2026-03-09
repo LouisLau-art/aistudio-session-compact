@@ -118,42 +118,6 @@ export interface StateSnapshot {
   };
 }
 
-export interface ContextCapsule {
-  meta: {
-    createdAt: string;
-    rawPath: string;
-    turnCount: number;
-    imageCount: number;
-    chunkCount: number;
-    modelUsed: string;
-    mode: "llm" | "heuristic";
-  };
-  sessionSummary: string;
-  background: CapsuleBackground;
-  peopleMap: CapsulePerson[];
-  currentState: {
-    summary: string;
-    currentObjectives: string[];
-    currentStance: string[];
-    nextTopics: string[];
-  };
-  goals: string[];
-  decisions: CapsuleDecision[];
-  stableDecisions: CapsuleDecision[];
-  constraints: string[];
-  openQuestions: string[];
-  todos: string[];
-  keyFacts: CapsuleFact[];
-  timeline: CapsuleTimelineEntry[];
-  recentTimeline: CapsuleTimelineEntry[];
-  appendix: {
-    archivedGoals: string[];
-    archivedQuestions: string[];
-    archivedFacts: string[];
-  };
-  resumeBrief: string;
-}
-
 export interface CaptureRunReport {
   startedAt: string;
   finishedAt: string;

@@ -10,22 +10,25 @@ import { runHandoff } from "../src/commands/handoff.js";
 describe("briefing flow", () => {
   it("threads briefing data through compress and handoff", async () => {
     const outDir = await mkdtemp(path.join(os.tmpdir(), "briefing-flow-"));
-    const capsulePath = path.join(outDir, "context_capsule.json");
 
-    await runCompress({
+    const compress = await runCompress({
       rawPath: path.resolve("examples/sample.raw.ndjson"),
       briefingPath: path.resolve("examples/sample.briefing.json"),
-      outPath: capsulePath,
-      chunkChars: 20000,
+      outDir,
+      minTailTurns: 1,
+      maxTailTurns: 10,
+      tailCharsBudget: 200,
     });
 
     const handoff = await runHandoff({
-      capsulePath,
+      snapshotPath: compress.snapshotPath,
+      tailPath: compress.tailPath,
+      briefingPath: path.resolve("examples/sample.briefing.json"),
       outDir,
     });
 
     const resumePrompt = await readFile(handoff.resumePromptPath, "utf8");
-    expect(resumePrompt).toContain("## Background");
+    expect(resumePrompt).toContain("## Stable Background");
     expect(resumePrompt).toContain("psychoanalytic framing");
     expect(resumePrompt).toContain("## People Map");
     expect(resumePrompt).toContain("Primary person");

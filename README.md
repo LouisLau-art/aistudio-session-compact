@@ -16,7 +16,7 @@ CLI tool for exporting very long Google AI Studio sessions, with transcript-firs
 - Render `transcript.txt` and `transcript.md` as the primary continuation artifacts
 - Extract message text and image references
 - Enrich images with OCR-first strategy (`tesseract`) + optional multimodal summaries (`doubao`)
-- Optionally compact long sessions into a `context_capsule.json`
+- Optionally compact long sessions into `state_snapshot.json` + `preserved_tail.ndjson`
 - Generate `handoff.md` and `resume_prompt.md` as secondary/fallback continuation artifacts
 
 ## Prerequisites
@@ -155,9 +155,15 @@ WITH_IMAGES=1 bun run transcript:headless -- "https://aistudio.google.com/prompt
 Optional compaction fallback when the raw transcript is still too large:
 
 ```bash
-bun run dev -- compress --raw ./out/session.raw.ndjson --images ./out/images.enriched.jsonl --out ./out/context_capsule.json
-bun run dev -- handoff --capsule ./out/context_capsule.json --out-dir ./out
+bun run dev -- compress --raw ./out/session.raw.ndjson --images ./out/images.enriched.jsonl --briefing ./examples/sample.story_briefing.json --out-dir ./out/compact
+bun run dev -- handoff --snapshot ./out/compact/state_snapshot.json --tail ./out/compact/preserved_tail.ndjson --briefing ./examples/sample.story_briefing.json --out-dir ./out/compact
 ```
+
+Notes for compaction fallback:
+
+- `story_briefing.json` is optional but recommended for stable people/background context
+- image/OCR enrichment is best effort and non-blocking
+- if `images.enriched.jsonl` is missing, compaction continues in text-only mode
 
 Legacy full pipeline:
 
@@ -220,7 +226,9 @@ If Paddle is unavailable, engine auto-detect falls back to Tesseract.
 - `transcript.md`
 - `transcript.report.json`
 - `images.enriched.jsonl` (only when image enrichment is enabled)
-- `context_capsule.json`
+- `state_snapshot.json`
+- `preserved_tail.ndjson`
+- `compress.report.json`
 - `handoff.md`
 - `resume_prompt.md`
 - `run-report.json`
@@ -230,5 +238,6 @@ If Paddle is unavailable, engine auto-detect falls back to Tesseract.
 - AI Studio DOM can evolve; extractor is selector-heuristic with fallback.
 - Image extraction is best effort; failures are recorded, not fatal.
 - Transcript export is the default continuation path; compaction is the fallback path.
+- Compaction output is now split into stable background/state (`state_snapshot.json`) and recent raw context (`preserved_tail.ndjson`) instead of one overloaded capsule.
 - OCR engine supports `auto|tesseract|paddle`; `paddle` failure auto-falls back to `tesseract`.
 - For very large chats, prefer OCR-first + selective multimodal enhancement for cost control.

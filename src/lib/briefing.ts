@@ -2,8 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { z } from "zod";
 
-import { normalizeContextCapsule } from "./capsule-schema.js";
-import type { CapsuleBackground, CapsulePerson, ContextCapsule } from "../types.js";
+import type { CapsulePerson, StateSnapshot, StoryBriefing } from "../types.js";
 
 const briefingSchema = z
   .object({
@@ -27,13 +26,12 @@ const briefingSchema = z
         }),
       )
       .default([]),
+    stableFacts: z.array(z.string()).default([]),
+    timelineAnchors: z.array(z.string()).default([]),
   })
   .passthrough();
 
-export interface CapsuleBriefing {
-  background: CapsuleBackground;
-  peopleMap: CapsulePerson[];
-}
+export type CapsuleBriefing = StoryBriefing;
 
 function uniqStrings(items: string[]): string[] {
   const seen = new Set<string>();
@@ -67,7 +65,7 @@ function mergePeople(base: CapsulePerson[], overlay: CapsulePerson[]): CapsulePe
   return Array.from(byName.values());
 }
 
-export async function readBriefingFile(filePath: string): Promise<CapsuleBriefing> {
+export async function readBriefingFile(filePath: string): Promise<StoryBriefing> {
   const raw = await readFile(filePath, "utf8");
   const parsed = briefingSchema.parse(JSON.parse(raw));
 
@@ -82,24 +80,28 @@ export async function readBriefingFile(filePath: string): Promise<CapsuleBriefin
       relation: person.relation.trim(),
       notes: person.notes?.trim() || undefined,
     })),
+    stableFacts: uniqStrings(parsed.stableFacts),
+    timelineAnchors: uniqStrings(parsed.timelineAnchors),
   };
 }
 
-export function applyBriefing(rawCapsule: ContextCapsule, briefing?: CapsuleBriefing): ContextCapsule {
-  const capsule = normalizeContextCapsule(rawCapsule);
-  if (!briefing) return capsule;
-
-  const background: CapsuleBackground = {
-    summary: briefing.background.summary || capsule.background.summary,
-    emotionalContext: uniqStrings([...capsule.background.emotionalContext, ...briefing.background.emotionalContext]),
-    workingFrames: uniqStrings([...capsule.background.workingFrames, ...briefing.background.workingFrames]),
-  };
-
-  const peopleMap = mergePeople(capsule.peopleMap, briefing.peopleMap);
+export function applyBriefingToSnapshot(rawSnapshot: StateSnapshot, briefing?: StoryBriefing): StateSnapshot {
+  if (!briefing) return rawSnapshot;
 
   return {
-    ...capsule,
-    background,
-    peopleMap,
+    ...rawSnapshot,
+    briefing: {
+      ...rawSnapshot.briefing,
+      applied: true,
+      sourcePath: rawSnapshot.briefing.sourcePath,
+    },
+    background: {
+      summary: briefing.background.summary || rawSnapshot.background.summary,
+      emotionalContext: uniqStrings([...rawSnapshot.background.emotionalContext, ...briefing.background.emotionalContext]),
+      workingFrames: uniqStrings([...rawSnapshot.background.workingFrames, ...briefing.background.workingFrames]),
+    },
+    peopleMap: mergePeople(rawSnapshot.peopleMap, briefing.peopleMap),
+    stableFacts: uniqStrings([...rawSnapshot.stableFacts, ...briefing.stableFacts]),
+    timelineAnchors: uniqStrings([...rawSnapshot.timelineAnchors, ...briefing.timelineAnchors]),
   };
 }

@@ -82,23 +82,28 @@ program
 
 program
   .command("compress")
-  .description("Compress captured session into context capsule (heuristic)")
+  .description("Compact captured session into snapshot + preserved tail artifacts")
   .requiredOption("--raw <path>", "Path to session.raw.ndjson")
   .option("--images <path>", "Path to images.enriched.jsonl")
   .option("--briefing <path>", "Optional JSON briefing with background + people map")
-  .option("--out <path>", "Output context_capsule.json", "./out/context_capsule.json")
-  .option("--chunk-chars <n>", "Chunk size by chars", parseIntValue, 20000)
+  .option("--out-dir <dir>", "Output directory", "./out")
+  .option("--tail-chars-budget <n>", "Character budget for preserved recent tail", parseIntValue, 120000)
+  .option("--min-tail-turns <n>", "Minimum number of preserved tail turns", parseIntValue, 12)
+  .option("--max-tail-turns <n>", "Maximum number of preserved tail turns", parseIntValue, 80)
   .action(async (opts) => {
     const result = await runCompress({
       rawPath: path.resolve(opts.raw),
       imagesPath: opts.images ? path.resolve(opts.images) : undefined,
       briefingPath: opts.briefing ? path.resolve(opts.briefing) : undefined,
-      outPath: path.resolve(opts.out),
-      chunkChars: opts.chunkChars,
+      outDir: path.resolve(opts.outDir),
+      tailCharsBudget: opts.tailCharsBudget,
+      minTailTurns: opts.minTailTurns,
+      maxTailTurns: opts.maxTailTurns,
     });
 
-    console.log(`Capsule created with ${result.capsule.meta.chunkCount} chunks`);
-    console.log(`Output: ${result.outPath}`);
+    console.log(`Snapshot: ${result.snapshotPath}`);
+    console.log(`Preserved tail: ${result.tailPath}`);
+    console.log(`Report: ${result.reportPath}`);
   });
 
 program
@@ -122,12 +127,14 @@ program
 program
   .command("handoff")
   .description("Generate markdown handoff + resume prompt")
-  .requiredOption("--capsule <path>", "Path to context_capsule.json")
+  .requiredOption("--snapshot <path>", "Path to state_snapshot.json")
+  .requiredOption("--tail <path>", "Path to preserved_tail.ndjson")
   .option("--briefing <path>", "Optional JSON briefing with background + people map")
   .option("--out-dir <dir>", "Output directory", "./out")
   .action(async (opts) => {
     const result = await runHandoff({
-      capsulePath: path.resolve(opts.capsule),
+      snapshotPath: path.resolve(opts.snapshot),
+      tailPath: path.resolve(opts.tail),
       briefingPath: opts.briefing ? path.resolve(opts.briefing) : undefined,
       outDir: path.resolve(opts.outDir),
     });

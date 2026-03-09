@@ -55,6 +55,8 @@ export async function runExportTranscript(
   options: ExportTranscriptOptions,
   deps: ExportTranscriptDeps = defaultDeps,
 ): Promise<ExportTranscriptResult> {
+  const maxImageScreenshots = options.withImages ? options.maxImageScreenshots : 0;
+
   const capture = await deps.runCapture({
     cdpUrl: options.cdpUrl,
     urlMatch: options.urlMatch,
@@ -64,7 +66,7 @@ export async function runExportTranscript(
     scrollWaitMs: options.scrollWaitMs,
     tabIndex: options.tabIndex,
     strictCapture: options.strictCapture,
-    maxImageScreenshots: options.maxImageScreenshots,
+    maxImageScreenshots,
   });
 
   let imagesPath: string | undefined;

@@ -36,7 +36,7 @@ describe("runExportTranscript", () => {
         maxScrollIterations: 10,
         stableRounds: 2,
         scrollWaitMs: 10,
-        maxImageScreenshots: 0,
+        maxImageScreenshots: 80,
       },
       {
         runCapture: capture,
@@ -54,6 +54,11 @@ describe("runExportTranscript", () => {
     };
 
     expect(capture).toHaveBeenCalledOnce();
+    expect(capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxImageScreenshots: 0,
+      }),
+    );
     expect(enrichImages).not.toHaveBeenCalled();
     expect(transcript).toHaveBeenCalledWith({
       rawPath: "/tmp/session.raw.ndjson",

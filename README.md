@@ -8,15 +8,16 @@
 ![Last Commit](https://img.shields.io/github/last-commit/LouisLau-art/aistudio-session-compact)
 ![Visibility](https://img.shields.io/badge/visibility-public-brightgreen)
 
-CLI tool for exporting very long Google AI Studio sessions and creating compact continuation artifacts.
+CLI tool for exporting very long Google AI Studio sessions, with transcript-first continuation and optional compaction fallback.
 
 ## Features
 
 - Capture AI Studio session content from an already logged-in Chrome tab via CDP
+- Render `transcript.txt` and `transcript.md` as the primary continuation artifacts
 - Extract message text and image references
 - Enrich images with OCR-first strategy (`tesseract`) + optional multimodal summaries (`doubao`)
-- Hierarchically compress long sessions into a `context_capsule.json`
-- Generate `handoff.md` and `resume_prompt.md` for seamless continuation
+- Optionally compact long sessions into a `context_capsule.json`
+- Generate `handoff.md` and `resume_prompt.md` as secondary/fallback continuation artifacts
 
 ## Prerequisites
 
@@ -81,12 +82,12 @@ CDP_HEADLESS=1 bash scripts/start-cdp-browser.sh chromium 9222
 
 If CDP still cannot connect and logs show `Opening in existing browser session`, close all windows/processes of that browser and re-run. This is required when the browser was already started without `--remote-debugging-port`.
 
-## Headless CLI Workflow (Recommended)
+## Headless Transcript Workflow (Recommended)
 
-Run full pipeline in CLI with headless Chromium:
+Run transcript-first export in CLI with headless Chromium:
 
 ```bash
-bun run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
+bun run transcript:headless -- "https://aistudio.google.com/prompts/<session-id>"
 ```
 
 Behavior:
@@ -94,14 +95,14 @@ Behavior:
 - Uses Chromium profile `~/.config/chromium` by default
 - Starts CDP in headless mode automatically
 - Matches target tab by session URL (`aistudio.google.com/prompts/<id>`) by default
-- Runs capture + OCR + compression + handoff end-to-end
+- Runs capture + OCR + transcript export end-to-end
 - If login is expired, fails fast with explicit "Google sign-in required" message
 - Capture quality gate is enabled by default (fails fast on noisy/invalid extraction)
 
 If multiple tabs still cause mismatch, set explicit tab index:
 
 ```bash
-TAB_INDEX=0 bun run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
+TAB_INDEX=0 bun run transcript:headless -- "https://aistudio.google.com/prompts/<session-id>"
 ```
 
 One-time login refresh when session expires:
@@ -109,7 +110,7 @@ One-time login refresh when session expires:
 ```bash
 CDP_USER_DATA_DIR="$HOME/.config/chromium" bash scripts/start-cdp-browser.sh chromium 9222 "https://aistudio.google.com/prompts/<session-id>"
 # complete login in browser window once, then rerun:
-bun run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
+bun run transcript:headless -- "https://aistudio.google.com/prompts/<session-id>"
 ```
 
 ## Usage
@@ -117,11 +118,23 @@ bun run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
 ```bash
 bun run dev -- capture --out ./out
 bun run dev -- enrich-images --raw ./out/session.raw.ndjson --out ./out/images.enriched.jsonl --provider auto --ocr-engine auto --ocr-lang eng+chi_sim
+bun run dev -- transcript --raw ./out/session.raw.ndjson --images ./out/images.enriched.jsonl --out-dir ./out
+```
+
+Headless one-shot transcript export:
+
+```bash
+bun run transcript:headless -- "https://aistudio.google.com/prompts/<session-id>"
+```
+
+Optional compaction fallback when the raw transcript is still too large:
+
+```bash
 bun run dev -- compress --raw ./out/session.raw.ndjson --images ./out/images.enriched.jsonl --out ./out/context_capsule.json
 bun run dev -- handoff --capsule ./out/context_capsule.json --out-dir ./out
 ```
 
-One-shot pipeline:
+Legacy full pipeline:
 
 ```bash
 bun run dev -- pipeline --out ./out --provider auto --ocr-engine auto --ocr-lang eng+chi_sim
@@ -138,7 +151,7 @@ Limit image screenshots to speed up very large sessions:
 ```bash
 bun run dev -- capture --out ./out --max-image-screenshots 40
 # headless wrapper:
-MAX_IMAGE_SCREENSHOTS=40 bun run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
+MAX_IMAGE_SCREENSHOTS=40 bun run transcript:headless -- "https://aistudio.google.com/prompts/<session-id>"
 ```
 
 If URL matching fails (for example due login redirect), select a tab directly:
@@ -150,7 +163,7 @@ bun run dev -- pipeline --out ./out --tab-index 0 --provider none
 Headless wrapper can also disable strict gate:
 
 ```bash
-STRICT_CAPTURE=0 bun run pipeline:headless -- "https://aistudio.google.com/prompts/<session-id>"
+STRICT_CAPTURE=0 bun run transcript:headless -- "https://aistudio.google.com/prompts/<session-id>"
 ```
 
 Force OCR-only mode (no multimodal API key):
@@ -179,6 +192,9 @@ If Paddle is unavailable, engine auto-detect falls back to Tesseract.
 
 - `session.raw.ndjson`
 - `images.enriched.jsonl`
+- `transcript.txt`
+- `transcript.md`
+- `transcript.report.json`
 - `context_capsule.json`
 - `handoff.md`
 - `resume_prompt.md`
@@ -188,5 +204,6 @@ If Paddle is unavailable, engine auto-detect falls back to Tesseract.
 
 - AI Studio DOM can evolve; extractor is selector-heuristic with fallback.
 - Image extraction is best effort; failures are recorded, not fatal.
+- Transcript export is the default continuation path; compaction is the fallback path.
 - OCR engine supports `auto|tesseract|paddle`; `paddle` failure auto-falls back to `tesseract`.
 - For very large chats, prefer OCR-first + selective multimodal enhancement for cost control.

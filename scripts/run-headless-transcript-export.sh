@@ -27,6 +27,7 @@ provider="${VISION_PROVIDER:-none}"
 ocr_engine="${OCR_ENGINE:-auto}"
 ocr_lang="${OCR_LANG:-eng+chi_sim}"
 python_bin="${OCR_PYTHON_BIN:-python3}"
+with_images="${WITH_IMAGES:-0}"
 tab_index="${TAB_INDEX:-}"
 strict_capture="${STRICT_CAPTURE:-1}"
 max_image_screenshots="${MAX_IMAGE_SCREENSHOTS:-80}"
@@ -55,6 +56,9 @@ if [[ -n "${tab_index}" ]]; then
 fi
 if [[ "${strict_capture}" == "0" || "${strict_capture}" == "false" ]]; then
   cmd+=(--no-strict-capture)
+fi
+if [[ "${with_images}" == "1" || "${with_images}" == "true" ]]; then
+  cmd+=(--with-images)
 fi
 
 cmd+=("$@")

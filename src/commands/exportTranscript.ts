@@ -25,19 +25,37 @@ export interface ExportTranscriptOptions {
   stableRounds: number;
   scrollWaitMs: number;
   maxImageScreenshots: number;
+  withImages?: boolean;
 }
 
 export interface ExportTranscriptResult {
   rawPath: string;
-  imagesPath: string;
+  imagesPath?: string;
+  imageRecordCount?: number;
   transcriptTxtPath: string;
   transcriptMdPath: string;
   transcriptReportPath: string;
   reportPath: string;
+  turnCount: number;
 }
 
-export async function runExportTranscript(options: ExportTranscriptOptions): Promise<ExportTranscriptResult> {
-  const capture = await runCapture({
+interface ExportTranscriptDeps {
+  runCapture: typeof runCapture;
+  runEnrichImages: typeof runEnrichImages;
+  runTranscript: typeof runTranscript;
+}
+
+const defaultDeps: ExportTranscriptDeps = {
+  runCapture,
+  runEnrichImages,
+  runTranscript,
+};
+
+export async function runExportTranscript(
+  options: ExportTranscriptOptions,
+  deps: ExportTranscriptDeps = defaultDeps,
+): Promise<ExportTranscriptResult> {
+  const capture = await deps.runCapture({
     cdpUrl: options.cdpUrl,
     urlMatch: options.urlMatch,
     outDir: options.outDir,
@@ -49,24 +67,29 @@ export async function runExportTranscript(options: ExportTranscriptOptions): Pro
     maxImageScreenshots: options.maxImageScreenshots,
   });
 
-  const imagesPath = path.join(options.outDir, "images.enriched.jsonl");
-  const transcript = await runTranscript({
+  let imagesPath: string | undefined;
+  let imageRecordCount: number | undefined;
+  if (options.withImages) {
+    const enrichment = await deps.runEnrichImages({
+      rawPath: capture.rawPath,
+      outPath: path.join(options.outDir, "images.enriched.jsonl"),
+      model: options.model,
+      provider: options.provider,
+      ocrEngine: options.ocrEngine,
+      enableOcr: options.enableOcr,
+      ocrLang: options.ocrLang,
+      pythonBin: options.pythonBin,
+      doubaoApiKey: options.doubaoApiKey,
+      doubaoBaseUrl: options.doubaoBaseUrl,
+    });
+
+    imagesPath = enrichment.outPath;
+    imageRecordCount = enrichment.count;
+  }
+
+  const transcript = await deps.runTranscript({
     rawPath: capture.rawPath,
-    imagesPath:
-      (
-        await runEnrichImages({
-          rawPath: capture.rawPath,
-          outPath: imagesPath,
-          model: options.model,
-          provider: options.provider,
-          ocrEngine: options.ocrEngine,
-          enableOcr: options.enableOcr,
-          ocrLang: options.ocrLang,
-          pythonBin: options.pythonBin,
-          doubaoApiKey: options.doubaoApiKey,
-          doubaoBaseUrl: options.doubaoBaseUrl,
-        })
-      ).outPath,
+    imagesPath,
     outDir: options.outDir,
   });
 
@@ -75,17 +98,21 @@ export async function runExportTranscript(options: ExportTranscriptOptions): Pro
     generatedAt: new Date().toISOString(),
     rawPath: capture.rawPath,
     imagesPath,
+    imageRecordCount,
     transcriptTxtPath: transcript.transcriptTxtPath,
     transcriptMdPath: transcript.transcriptMdPath,
     transcriptReportPath: transcript.reportPath,
+    turnCount: transcript.turnCount,
   });
 
   return {
     rawPath: capture.rawPath,
     imagesPath,
+    imageRecordCount,
     transcriptTxtPath: transcript.transcriptTxtPath,
     transcriptMdPath: transcript.transcriptMdPath,
     transcriptReportPath: transcript.reportPath,
     reportPath,
+    turnCount: transcript.turnCount,
   };
 }

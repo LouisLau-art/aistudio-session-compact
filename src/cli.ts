@@ -199,6 +199,7 @@ program
   .option("--python-bin <path>", "Python binary for PaddleOCR sidecar", process.env.OCR_PYTHON_BIN ?? "python3")
   .option("--doubao-api-key <key>", "Doubao API key")
   .option("--doubao-base-url <url>", "Doubao/OpenAI-compatible base URL", process.env.DOUBAO_BASE_URL)
+  .option("--with-images", "Run OCR/image enrichment before transcript export", false)
   .option("--max-scroll-iterations <n>", "Max loading loops", parseIntValue, 220)
   .option("--stable-rounds <n>", "Stop after N stable rounds", parseIntValue, 6)
   .option("--scroll-wait-ms <n>", "Wait time per loop (ms)", parseIntValue, 900)
@@ -219,6 +220,7 @@ program
       pythonBin: opts.pythonBin,
       doubaoApiKey: opts.doubaoApiKey,
       doubaoBaseUrl: opts.doubaoBaseUrl,
+      withImages: opts.withImages,
       maxScrollIterations: opts.maxScrollIterations,
       stableRounds: opts.stableRounds,
       scrollWaitMs: opts.scrollWaitMs,

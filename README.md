@@ -95,7 +95,8 @@ Behavior:
 - Uses Chromium profile `~/.config/chromium` by default
 - Starts CDP in headless mode automatically
 - Matches target tab by session URL (`aistudio.google.com/prompts/<id>`) by default
-- Runs capture + OCR + transcript export end-to-end
+- Runs capture + transcript export end-to-end by default
+- Image enrichment is optional; enable it only when you need OCR or image context
 - If login is expired, fails fast with explicit "Google sign-in required" message
 - Capture quality gate is enabled by default (fails fast on noisy/invalid extraction)
 
@@ -117,14 +118,38 @@ bun run transcript:headless -- "https://aistudio.google.com/prompts/<session-id>
 
 ```bash
 bun run dev -- capture --out ./out
+bun run dev -- transcript --raw ./out/session.raw.ndjson --out-dir ./out
+```
+
+Optional image-aware transcript export:
+
+```bash
 bun run dev -- enrich-images --raw ./out/session.raw.ndjson --out ./out/images.enriched.jsonl --provider auto --ocr-engine auto --ocr-lang eng+chi_sim
 bun run dev -- transcript --raw ./out/session.raw.ndjson --images ./out/images.enriched.jsonl --out-dir ./out
+```
+
+One-shot transcript export without image enrichment:
+
+```bash
+bun run dev -- export-transcript --out ./out
+```
+
+One-shot transcript export with OCR/image enrichment:
+
+```bash
+bun run dev -- export-transcript --out ./out --with-images --provider auto --ocr-engine auto --ocr-lang eng+chi_sim
 ```
 
 Headless one-shot transcript export:
 
 ```bash
 bun run transcript:headless -- "https://aistudio.google.com/prompts/<session-id>"
+```
+
+Headless transcript export with OCR/image enrichment:
+
+```bash
+WITH_IMAGES=1 bun run transcript:headless -- "https://aistudio.google.com/prompts/<session-id>"
 ```
 
 Optional compaction fallback when the raw transcript is still too large:
@@ -191,10 +216,10 @@ If Paddle is unavailable, engine auto-detect falls back to Tesseract.
 ## Outputs
 
 - `session.raw.ndjson`
-- `images.enriched.jsonl`
 - `transcript.txt`
 - `transcript.md`
 - `transcript.report.json`
+- `images.enriched.jsonl` (only when image enrichment is enabled)
 - `context_capsule.json`
 - `handoff.md`
 - `resume_prompt.md`

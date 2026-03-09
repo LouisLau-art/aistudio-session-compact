@@ -131,4 +131,23 @@ describe("buildStateSnapshot", () => {
     expect(snapshot.recentTimeline[0]?.turnId).toBe("t-000009");
     expect(snapshot.recentTimeline.at(-1)?.turnId).toBe("t-000020");
   });
+
+  it("infers current objective stance and next action from recent tail when explicit markers are absent", () => {
+    const turns: SessionTurn[] = [
+      makeTurn(1, "user", "我现在更具体的问题是：我今晚要不要给小雅发消息？"),
+      makeTurn(2, "model", "不要继续绕弯子。直接先问她有没有吃晚饭。"),
+    ];
+
+    const snapshot = buildStateSnapshot({
+      rawPath: "/tmp/session.raw.ndjson",
+      turns,
+      preservedTail: turns,
+      modelUsed: "heuristic-local",
+      mode: "heuristic",
+    });
+
+    expect(snapshot.currentState.currentObjectives).toContain("我今晚要不要给小雅发消息");
+    expect(snapshot.currentState.currentStance).toContain("不要继续绕弯子。");
+    expect(snapshot.currentState.nextActions).toContain("直接先问她有没有吃晚饭。");
+  });
 });

@@ -26,6 +26,7 @@ const EMPTY_BACKGROUND = {
 const MAX_ACTIVE_QUESTIONS = 3;
 const MAX_ACTIVE_QUESTION_CHARS = 220;
 const MAX_RECENT_TIMELINE_ITEMS = 12;
+const MAX_INFERRED_STATE_ITEMS = 3;
 
 export function buildStateSnapshot(input: BuildStateSnapshotInput): StateSnapshot {
   const preservedIds = new Set(input.preservedTail.map((turn) => turn.id));
@@ -46,9 +47,15 @@ export function buildStateSnapshot(input: BuildStateSnapshotInput): StateSnapsho
     /^(?:active fact|fact|status|situation)\s*:\s*(.+)$/i,
   );
 
-  const currentObjectives = currentObjectiveMatches.map((match) => match.value);
-  const currentStance = currentStanceMatches.map((match) => match.value);
-  const nextActions = nextActionMatches.map((match) => match.value);
+  const currentObjectives = currentObjectiveMatches.length
+    ? currentObjectiveMatches.map((match) => match.value)
+    : inferCurrentObjectives(input.preservedTail, activeQuestions);
+  const currentStance = currentStanceMatches.length
+    ? currentStanceMatches.map((match) => match.value)
+    : inferCurrentStance(input.preservedTail);
+  const nextActions = nextActionMatches.length
+    ? nextActionMatches.map((match) => match.value)
+    : inferNextActions(input.preservedTail, activeQuestions);
 
   const stableDecisions: CapsuleDecision[] = currentStanceMatches.map((match) => ({
     decision: match.value,
@@ -221,6 +228,7 @@ function withQuestionMark(text: string): string {
 
 function stripTurnPrefix(text: string): string {
   return text
+    .replace(/^(?:Louis|刘新宇（Louis）|新宇（Louis）)[，,\s]*/i, "")
     .replace(/^(?:User|Model)\s+\d{1,2}:\d{2}\s*(?:AM|PM)\s*/i, "")
     .replace(/^(?:用户|模型)\s+\d{1,2}:\d{2}\s*/i, "")
     .trim();
@@ -237,6 +245,99 @@ function isConciseQuestion(question: string): boolean {
 
   const clauseSeparators = question.split(/[，,；;：:、]/).length - 1;
   return clauseSeparators <= 3;
+}
+
+function inferCurrentObjectives(turns: SessionTurn[], activeQuestions: string[]): string[] {
+  const candidates: string[] = [];
+
+  for (const turn of [...turns].reverse()) {
+    if (turn.role !== "user") continue;
+
+    for (const sentence of splitSentences(turn.text)) {
+      const normalized = normalizeStateSentence(sentence);
+      if (!normalized) continue;
+
+      if (/^(?:我(?:现在)?更具体的问题是[:：]?)\s*/.test(normalized)) {
+        candidates.push(
+          stripTrailingPunctuation(normalized.replace(/^(?:我(?:现在)?更具体的问题是[:：]?)\s*/, "")),
+        );
+        continue;
+      }
+
+      if (/^我(?:今晚)?要不要/.test(normalized) || /^我需要/.test(normalized) || /^我要去/.test(normalized)) {
+        candidates.push(stripTrailingPunctuation(normalized));
+      }
+    }
+  }
+
+  if (!candidates.length && activeQuestions[0]) {
+    candidates.push(stripTrailingPunctuation(activeQuestions[0]));
+  }
+
+  return uniq(candidates).slice(0, MAX_INFERRED_STATE_ITEMS);
+}
+
+function inferCurrentStance(turns: SessionTurn[]): string[] {
+  const candidates: string[] = [];
+
+  for (const turn of [...turns].reverse()) {
+    if (turn.role !== "model") continue;
+
+    for (const sentence of splitSentences(turn.text)) {
+      const normalized = normalizeStateSentence(sentence);
+      if (!normalized) continue;
+      if (!/^(?:不要|别|先别|绝对不能|不能|必须|应该)/.test(normalized)) continue;
+      if (normalized.length > 80) continue;
+      candidates.push(withSentencePeriod(normalized));
+    }
+  }
+
+  return uniq(candidates).slice(0, MAX_INFERRED_STATE_ITEMS);
+}
+
+function inferNextActions(turns: SessionTurn[], activeQuestions: string[]): string[] {
+  const candidates: string[] = [];
+
+  for (const turn of [...turns].reverse()) {
+    if (turn.role !== "model") continue;
+
+    for (const sentence of splitSentences(turn.text)) {
+      const normalized = normalizeStateSentence(sentence);
+      if (!normalized) continue;
+      if (!/^(?:直接|先|就按|回复|发|问|关闭|稳住)/.test(normalized)) continue;
+      if (normalized.length > 80) continue;
+      candidates.push(withSentencePeriod(normalized));
+    }
+  }
+
+  if (!candidates.length && activeQuestions[0]) {
+    candidates.push(stripTrailingPunctuation(activeQuestions[0]));
+  }
+
+  return uniq(candidates).slice(0, MAX_INFERRED_STATE_ITEMS);
+}
+
+function splitSentences(text: string): string[] {
+  return text
+    .replace(/\r?\n/g, "\n")
+    .split(/[\n]|(?<=[。！？!?])/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function normalizeStateSentence(text: string): string {
+  return stripTurnPrefix(text)
+    .replace(/[*#>`"]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripTrailingPunctuation(text: string): string {
+  return text.replace(/[。！？!?]+$/u, "").trim();
+}
+
+function withSentencePeriod(text: string): string {
+  return /[。！？!?]$/u.test(text) ? text : `${text}。`;
 }
 
 function summarizeCurrentState(input: {

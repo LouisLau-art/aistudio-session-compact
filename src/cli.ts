@@ -8,6 +8,7 @@ import type { VisionProvider } from "./commands/enrichImages.js";
 import { runEnrichImages } from "./commands/enrichImages.js";
 import { runHandoff } from "./commands/handoff.js";
 import { runPipeline } from "./commands/pipeline.js";
+import { runTranscript } from "./commands/transcript.js";
 import type { OcrEngine } from "./lib/ocr.js";
 
 const program = new Command();
@@ -97,6 +98,24 @@ program
 
     console.log(`Capsule created with ${result.capsule.meta.chunkCount} chunks`);
     console.log(`Output: ${result.outPath}`);
+  });
+
+program
+  .command("transcript")
+  .description("Render transcript.txt and transcript.md from captured session data")
+  .requiredOption("--raw <path>", "Path to session.raw.ndjson")
+  .option("--images <path>", "Path to images.enriched.jsonl")
+  .option("--out-dir <dir>", "Output directory", "./out")
+  .action(async (opts) => {
+    const result = await runTranscript({
+      rawPath: path.resolve(opts.raw),
+      imagesPath: opts.images ? path.resolve(opts.images) : undefined,
+      outDir: path.resolve(opts.outDir),
+    });
+
+    console.log(`Transcript text: ${result.transcriptTxtPath}`);
+    console.log(`Transcript markdown: ${result.transcriptMdPath}`);
+    console.log(`Report: ${result.reportPath}`);
   });
 
 program

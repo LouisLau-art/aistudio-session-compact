@@ -1,5 +1,10 @@
+import { mkdtemp, readFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
+import { runTranscript } from "../src/commands/transcript.js";
 import { renderTranscriptMarkdown, renderTranscriptText } from "../src/lib/transcript.js";
 import type { ImageEnrichment, SessionTurn } from "../src/types.js";
 
@@ -75,5 +80,32 @@ describe("transcript renderers", () => {
     expect(text).toContain("[Image img-1] OCR: Screenshot text from the conversation");
     expect(text).not.toContain("[Image img-2]");
     expect(text).not.toContain("image file missing from capture stage");
+  });
+});
+
+describe("runTranscript", () => {
+  it("writes transcript text, markdown, and report artifacts", async () => {
+    const outDir = await mkdtemp(path.join(os.tmpdir(), "transcript-run-"));
+
+    const result = await runTranscript({
+      rawPath: path.resolve("examples/sample.raw.ndjson"),
+      outDir,
+    });
+
+    const text = await readFile(result.transcriptTxtPath, "utf8");
+    const markdown = await readFile(result.transcriptMdPath, "utf8");
+    const report = JSON.parse(await readFile(result.reportPath, "utf8")) as {
+      rawPath: string;
+      transcriptTxtPath: string;
+      transcriptMdPath: string;
+      turnCount: number;
+    };
+
+    expect(text).toContain("[0] USER t-000001");
+    expect(markdown).toContain("# Session Transcript");
+    expect(report.rawPath).toBe(path.resolve("examples/sample.raw.ndjson"));
+    expect(report.transcriptTxtPath).toBe(result.transcriptTxtPath);
+    expect(report.transcriptMdPath).toBe(result.transcriptMdPath);
+    expect(report.turnCount).toBe(2);
   });
 });

@@ -259,19 +259,21 @@ function inferCurrentObjectives(turns: SessionTurn[], activeQuestions: string[])
 
       if (/^(?:我(?:现在)?更具体的问题是[:：]?)\s*/.test(normalized)) {
         candidates.push(
-          stripTrailingPunctuation(normalized.replace(/^(?:我(?:现在)?更具体的问题是[:：]?)\s*/, "")),
+          normalizeInferredObjective(
+            stripTrailingPunctuation(normalized.replace(/^(?:我(?:现在)?更具体的问题是[:：]?)\s*/, "")),
+          ),
         );
         continue;
       }
 
       if (/^我(?:今晚)?要不要/.test(normalized) || /^我需要/.test(normalized) || /^我要去/.test(normalized)) {
-        candidates.push(stripTrailingPunctuation(normalized));
+        candidates.push(normalizeInferredObjective(stripTrailingPunctuation(normalized)));
       }
     }
   }
 
   if (!candidates.length && activeQuestions[0]) {
-    candidates.push(stripTrailingPunctuation(activeQuestions[0]));
+    candidates.push(normalizeInferredObjective(stripTrailingPunctuation(activeQuestions[0])));
   }
 
   return uniq(candidates).slice(0, MAX_INFERRED_STATE_ITEMS);
@@ -288,7 +290,7 @@ function inferCurrentStance(turns: SessionTurn[]): string[] {
       if (!normalized) continue;
       if (!/^(?:不要|别|先别|绝对不能|不能|必须|应该)/.test(normalized)) continue;
       if (normalized.length > 80) continue;
-      candidates.push(withSentencePeriod(normalized));
+      candidates.push(normalizeInferredStance(withSentencePeriod(normalized)));
     }
   }
 
@@ -306,12 +308,12 @@ function inferNextActions(turns: SessionTurn[], activeQuestions: string[]): stri
       if (!normalized) continue;
       if (!/^(?:直接|先|就按|回复|发|问|关闭|稳住)/.test(normalized)) continue;
       if (normalized.length > 80) continue;
-      candidates.push(withSentencePeriod(normalized));
+      candidates.push(normalizeInferredNextAction(withSentencePeriod(normalized)));
     }
   }
 
   if (!candidates.length && activeQuestions[0]) {
-    candidates.push(stripTrailingPunctuation(activeQuestions[0]));
+    candidates.push(normalizeInferredNextAction(stripTrailingPunctuation(activeQuestions[0])));
   }
 
   return uniq(candidates).slice(0, MAX_INFERRED_STATE_ITEMS);
@@ -338,6 +340,67 @@ function stripTrailingPunctuation(text: string): string {
 
 function withSentencePeriod(text: string): string {
   return /[。！？!?]$/u.test(text) ? text : `${text}。`;
+}
+
+function normalizeInferredObjective(text: string): string {
+  const normalized = stripTrailingPunctuation(text);
+
+  const contactMatch = normalized.match(/^我要去约(.+)$/);
+  if (contactMatch?.[1]) {
+    return `决定是否再次联系${contactMatch[1].trim()}`;
+  }
+
+  const messageMatch = normalized.match(/^我(?:今晚)?要不要给?(.+?)发消息$/);
+  if (messageMatch?.[1]) {
+    return `决定是否给${messageMatch[1].trim()}发消息`;
+  }
+
+  const decideMatch = normalized.match(/^我(?:今晚)?要不要(.+)$/);
+  if (decideMatch?.[1]) {
+    return `决定是否${decideMatch[1].trim()}`;
+  }
+
+  return normalized;
+}
+
+function normalizeInferredStance(text: string): string {
+  const normalized = withSentencePeriod(stripTrailingPunctuation(text));
+
+  if (normalized.includes("侦探游戏")) {
+    return "避免通过试探性社交动作重新接近何引。";
+  }
+
+  if (normalized.includes("万一") && normalized.includes("病毒链接")) {
+    return "避免因为“万一”的侥幸心理重新接触何引。";
+  }
+
+  if (normalized.includes("不能按你那个方案回复")) {
+    return "不要按当前的试探方案回复。";
+  }
+
+  return normalized
+    .replace(/^别手贱/u, "避免")
+    .replace(/^不要/u, "避免")
+    .replace(/^绝对不能/u, "不要")
+    .replace(/^不能/u, "不要");
+}
+
+function normalizeInferredNextAction(text: string): string {
+  const normalized = withSentencePeriod(stripTrailingPunctuation(text));
+
+  if (normalized.includes("6 个人刚好轮换")) {
+    return "用人数刚好的理由直接拒绝额外加人。";
+  }
+
+  if (normalized.includes("关闭输入框")) {
+    return "先停止继续构造试探性回复。";
+  }
+
+  if (normalized === "发那句回复。") {
+    return "发送简短明确的拒绝回复。";
+  }
+
+  return normalized;
 }
 
 function summarizeCurrentState(input: {

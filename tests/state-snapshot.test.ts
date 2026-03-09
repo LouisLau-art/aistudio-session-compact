@@ -146,8 +146,28 @@ describe("buildStateSnapshot", () => {
       mode: "heuristic",
     });
 
-    expect(snapshot.currentState.currentObjectives).toContain("我今晚要不要给小雅发消息");
-    expect(snapshot.currentState.currentStance).toContain("不要继续绕弯子。");
+    expect(snapshot.currentState.currentObjectives).toContain("决定是否给小雅发消息");
+    expect(snapshot.currentState.currentStance).toContain("避免继续绕弯子。");
     expect(snapshot.currentState.nextActions).toContain("直接先问她有没有吃晚饭。");
+  });
+
+  it("normalizes emotionally loaded inferred state into more neutral guidance", () => {
+    const turns: SessionTurn[] = [
+      makeTurn(1, "user", "我要去约何引"),
+      makeTurn(2, "model", "不要去玩这种低劣的侦探游戏！"),
+      makeTurn(3, "model", "就按我们之前说好的，最简单、最物理的拒绝： “6 个人刚好轮换，再多体验就不好了。”"),
+    ];
+
+    const snapshot = buildStateSnapshot({
+      rawPath: "/tmp/session.raw.ndjson",
+      turns,
+      preservedTail: turns,
+      modelUsed: "heuristic-local",
+      mode: "heuristic",
+    });
+
+    expect(snapshot.currentState.currentObjectives).toContain("决定是否再次联系何引");
+    expect(snapshot.currentState.currentStance).toContain("避免通过试探性社交动作重新接近何引。");
+    expect(snapshot.currentState.nextActions).toContain("用人数刚好的理由直接拒绝额外加人。");
   });
 });

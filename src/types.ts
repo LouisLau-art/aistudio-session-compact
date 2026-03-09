@@ -70,6 +70,54 @@ export interface CapsulePerson {
   notes?: string;
 }
 
+export type StoryBackground = CapsuleBackground;
+export type StoryPerson = CapsulePerson;
+export type StoryTimelineEntry = CapsuleTimelineEntry;
+
+export interface StoryBriefing {
+  background: StoryBackground;
+  peopleMap: StoryPerson[];
+  stableFacts: string[];
+  timelineAnchors: string[];
+}
+
+export interface StateSnapshot {
+  version: 2;
+  meta: {
+    createdAt: string;
+    rawPath: string;
+    turnCount: number;
+    imageCount: number;
+    chunkCount: number;
+    mode: "llm" | "heuristic";
+    modelUsed: string;
+    strategy: string;
+  };
+  briefing: {
+    sourcePath?: string;
+    applied: boolean;
+  };
+  background: StoryBackground;
+  peopleMap: StoryPerson[];
+  stableFacts: string[];
+  timelineAnchors: string[];
+  currentState: {
+    summary: string;
+    currentObjectives: string[];
+    currentStance: string[];
+    activeQuestions: string[];
+    nextActions: string[];
+  };
+  stableDecisions: CapsuleDecision[];
+  activeFacts: CapsuleFact[];
+  recentTimeline: StoryTimelineEntry[];
+  archive: {
+    archivedGoals: string[];
+    archivedQuestions: string[];
+    archivedFacts: string[];
+  };
+}
+
 export interface ContextCapsule {
   meta: {
     createdAt: string;

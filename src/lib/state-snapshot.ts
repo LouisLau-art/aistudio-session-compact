@@ -23,6 +23,10 @@ const EMPTY_BACKGROUND = {
   workingFrames: [] as string[],
 };
 
+const MAX_ACTIVE_QUESTIONS = 3;
+const MAX_ACTIVE_QUESTION_CHARS = 220;
+const MAX_RECENT_TIMELINE_ITEMS = 12;
+
 export function buildStateSnapshot(input: BuildStateSnapshotInput): StateSnapshot {
   const preservedIds = new Set(input.preservedTail.map((turn) => turn.id));
   const archiveTurns = input.turns.filter((turn) => !preservedIds.has(turn.id));
@@ -55,10 +59,10 @@ export function buildStateSnapshot(input: BuildStateSnapshotInput): StateSnapsho
     evidenceTurnIds: [match.turnId],
   }));
 
-  const recentTimeline = input.preservedTail.map<StoryTimelineEntry>((turn) => ({
+  const recentTimeline = input.preservedTail.slice(-MAX_RECENT_TIMELINE_ITEMS).map<StoryTimelineEntry>((turn) => ({
     turnId: turn.id,
     role: turn.role,
-    summary: shorten(turn.text),
+    summary: shorten(stripTurnPrefix(turn.text)),
   }));
 
   const archivedGoals = collectMatches(archiveTurns, /^(?:goal|objective)\s*:\s*(.+)$/i).map((match) => match.value);
@@ -137,12 +141,13 @@ function collectQuestions(turns: SessionTurn[]): string[] {
     for (const line of splitLines(turn.text)) {
       const prefixed = line.match(/^(?:current question|question)\s*:\s*(.+)$/i)?.[1]?.trim();
       if (prefixed) {
-        results.push(prefixed);
+        results.push(stripTurnPrefix(prefixed));
         continue;
       }
 
-      if (/[?？]$/.test(line.trim())) {
-        results.push(line.trim());
+      const normalized = stripTurnPrefix(line.trim());
+      if (/[?？]$/.test(normalized)) {
+        results.push(normalized);
       }
     }
   }
@@ -153,10 +158,16 @@ function collectQuestions(turns: SessionTurn[]): string[] {
 function collectRecentCurrentQuestions(turns: SessionTurn[], preservedTail: SessionTurn[]): string[] {
   const currentQuestionLines = collectMatches([...turns].reverse(), /^(?:current question)\s*:\s*(.+)$/i);
   if (currentQuestionLines.length) {
-    return currentQuestionLines.map((question) => withQuestionMark(question.value));
+    return takePreferredQuestions(currentQuestionLines.map((question) => withQuestionMark(stripTurnPrefix(question.value))));
   }
 
-  return collectQuestions([...preservedTail].reverse());
+  const userQuestions = collectQuestions(
+    [...preservedTail]
+      .reverse()
+      .filter((turn) => turn.role === "user"),
+  );
+
+  return takePreferredQuestions(userQuestions);
 }
 
 function splitLines(text: string): string[] {
@@ -206,6 +217,26 @@ function shorten(text: string, max = 160): string {
 
 function withQuestionMark(text: string): string {
   return /[?？]$/.test(text) ? text : `${text}?`;
+}
+
+function stripTurnPrefix(text: string): string {
+  return text
+    .replace(/^(?:User|Model)\s+\d{1,2}:\d{2}\s*(?:AM|PM)\s*/i, "")
+    .replace(/^(?:用户|模型)\s+\d{1,2}:\d{2}\s*/i, "")
+    .trim();
+}
+
+function takePreferredQuestions(questions: string[]): string[] {
+  const concise = questions.filter(isConciseQuestion);
+  const preferred = concise.length ? concise : questions;
+  return preferred.slice(0, MAX_ACTIVE_QUESTIONS);
+}
+
+function isConciseQuestion(question: string): boolean {
+  if (question.length > MAX_ACTIVE_QUESTION_CHARS) return false;
+
+  const clauseSeparators = question.split(/[，,；;：:、]/).length - 1;
+  return clauseSeparators <= 3;
 }
 
 function summarizeCurrentState(input: {

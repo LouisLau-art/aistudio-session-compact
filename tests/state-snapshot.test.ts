@@ -90,4 +90,45 @@ describe("buildStateSnapshot", () => {
     );
     expect(snapshot.currentState.currentStance).toContain("image failures should not block the fallback path.");
   });
+
+  it("prefers concise recent user questions over long narrative question dumps", () => {
+    const longNarrativeQuestion =
+      "我现在还是会反复想起何引，想到我们之前的肢体接触、表白被拒、博士哥、室友、球友、图书馆、围巾和各种细节，我到底是不是还可以继续和她接触、继续研究她、继续玩推拉、继续约她打球、继续保持若即若离的关系，哪怕只是为了社会学观察呢？";
+
+    const turns: SessionTurn[] = [
+      makeTurn(1, "user", longNarrativeQuestion),
+      makeTurn(2, "model", "先不要在长叙事里迷路。"),
+      makeTurn(3, "user", "现在更具体的问题是：我今晚要不要给小雅发消息？"),
+      makeTurn(4, "model", "Current stance: prioritize the concrete next move over symbolic over-analysis."),
+    ];
+
+    const snapshot = buildStateSnapshot({
+      rawPath: "/tmp/session.raw.ndjson",
+      turns,
+      preservedTail: turns,
+      modelUsed: "heuristic-local",
+      mode: "heuristic",
+    });
+
+    expect(snapshot.currentState.activeQuestions).toContain("现在更具体的问题是：我今晚要不要给小雅发消息？");
+    expect(snapshot.currentState.activeQuestions).not.toContain(longNarrativeQuestion);
+  });
+
+  it("limits recent timeline to a concise view of the newest preserved turns", () => {
+    const turns: SessionTurn[] = Array.from({ length: 20 }, (_, index) =>
+      makeTurn(index + 1, index % 2 === 0 ? "user" : "model", `Turn ${index + 1}`),
+    );
+
+    const snapshot = buildStateSnapshot({
+      rawPath: "/tmp/session.raw.ndjson",
+      turns,
+      preservedTail: turns,
+      modelUsed: "heuristic-local",
+      mode: "heuristic",
+    });
+
+    expect(snapshot.recentTimeline).toHaveLength(12);
+    expect(snapshot.recentTimeline[0]?.turnId).toBe("t-000009");
+    expect(snapshot.recentTimeline.at(-1)?.turnId).toBe("t-000020");
+  });
 });

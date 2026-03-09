@@ -90,6 +90,8 @@ describe("runHandoff v2", () => {
 
     const resumePrompt = await readFile(result.resumePromptPath, "utf8");
     const handoff = await readFile(result.handoffPath, "utf8");
+    const preservedTailMd = await readFile(result.preservedTailMarkdownPath, "utf8");
+    const preservedTailTxt = await readFile(result.preservedTailTextPath, "utf8");
 
     expect(resumePrompt).toContain("## Current State");
     expect(resumePrompt).toContain("Reduce contact and continue recovery.");
@@ -105,6 +107,14 @@ describe("runHandoff v2", () => {
     expect(handoff).toContain("## Stable Background");
     expect(handoff).toContain("## People Map");
     expect(handoff).toContain("## Preserved Recent Turns");
+
+    expect(preservedTailMd).toContain("# Preserved Recent Turns");
+    expect(preservedTailMd).toContain("[5] USER t-000005");
+    expect(preservedTailMd).toContain("[6] MODEL t-000006");
+
+    expect(preservedTailTxt).toContain("[5] USER t-000005");
+    expect(preservedTailTxt).toContain("Current question: should I stop replying altogether?");
+    expect(preservedTailTxt).toContain("[6] MODEL t-000006");
 
     expect(resumePrompt.indexOf("## Current State")).toBeLessThan(resumePrompt.indexOf("## Archived Context"));
   });

@@ -141,6 +141,8 @@ program
 
     console.log(`Handoff: ${result.handoffPath}`);
     console.log(`Resume prompt: ${result.resumePromptPath}`);
+    console.log(`Preserved tail markdown: ${result.preservedTailMarkdownPath}`);
+    console.log(`Preserved tail text: ${result.preservedTailTextPath}`);
   });
 
 program

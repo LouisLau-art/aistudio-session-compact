@@ -139,6 +139,30 @@ export function renderResumePrompt(snapshot: StateSnapshot, tail: SessionTurn[])
   ].join("\n");
 }
 
+export function renderPreservedTailMarkdown(tail: SessionTurn[]): string {
+  return [
+    "# Preserved Recent Turns",
+    "",
+    ...renderTailLines(tail),
+    "",
+  ].join("\n");
+}
+
+export function renderPreservedTailText(tail: SessionTurn[]): string {
+  if (!tail.length) return "(none)\n";
+
+  return (
+    tail
+      .flatMap((turn) => [
+        `[${turn.order}] ${turn.role.toUpperCase()} ${turn.id}`,
+        turn.text || "(empty)",
+        "",
+      ])
+      .join("\n")
+      .trimEnd() + "\n"
+  );
+}
+
 function renderTailLines(tail: SessionTurn[]): string[] {
   if (!tail.length) return ["(none)"];
 

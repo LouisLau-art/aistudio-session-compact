@@ -2,7 +2,7 @@
 
 ## Problem
 
-`capture` is not reliably exporting the newest turns from long AI Studio sessions. The current flow does a preload pass, then extracts from a single DOM snapshot. For AI Studio's virtualized list, that is brittle: whichever region is rendered at extraction time dominates the result. The same visible-only assumption also weakens image capture, because element screenshots only work while the relevant image is actually rendered.
+`capture` is not reliably exporting the newest turns from long AI Studio sessions. The current flow does a preload pass, then extracts from a single DOM snapshot. For AI Studio's virtualized list, that is brittle: whichever region is rendered at extraction time dominates the result. A later recheck also showed that off-screen `ms-chat-turn` elements can stay in DOM while their text content dehydrates, so a coarse sweep can still preserve the wrong tail ordering. The same visible-only assumption also weakens image capture, because element screenshots only work while the relevant image is actually rendered.
 
 ## Evidence
 
@@ -11,11 +11,12 @@
 - `src/commands/capture.ts` currently calls `autoScrollLoad()`, which repeatedly forces the scroller to the top, and then `extractTurnsFromChatTurns()`, which scans only the currently rendered `ms-chat-turn` nodes.
 - `images.enriched.jsonl` shows OCR did not run on meaningful images because capture did not persist usable local image files; `saveVisibleImages()` only screenshots currently visible `img` elements and silently ignores failures.
 - Playwright documentation confirms that `connectOverCDP` is lower fidelity than the normal Playwright protocol, and that locator screenshots only capture visible content. That matches the observed brittleness.
+- On April 7, 2026, a transcript re-export initially appeared to stop around `2:55 AM` even though the same session still contained daytime turns. After switching to DOM-order hydration, the corrected tail reached `2:42 PM`, confirming that ordering and hydration state, not raw availability, was the failure mode.
 
 ## Requirements
 
 1. Preserve the newest visible turns at the bottom of the session before historical scanning perturbs the DOM.
-2. Sweep the virtualized list across scroll positions instead of trusting a single DOM snapshot.
+2. Rehydrate the virtualized list across scroll positions instead of trusting a single DOM snapshot.
 3. Deduplicate turns across scroll positions and keep the best text version per turn.
 4. Harvest visible images while the corresponding turn is in view, not only after final extraction.
 5. Keep the existing CLI and output format stable.
@@ -29,8 +30,8 @@ Add a final scroll-to-bottom pass and re-run the existing extractor.
 - Pros: small change
 - Cons: still relies on one DOM snapshot, still weak for images, likely unstable
 
-### Option 2: Bottom-first + historical sweep
-Capture recent visible turns first, then sweep through scroll positions to collect historical turns and images, deduping by stable turn identity.
+### Option 2: Bottom-first + DOM-order hydration
+Capture recent visible turns first, then walk the rendered `ms-chat-turn` list in stable DOM order, scrolling each target row into view and hydrating a small local window around it. Merge those observations by stable turn identity.
 
 - Pros: directly addresses virtualized DOM behavior, keeps current architecture, also improves image capture
 - Cons: more moving parts than option 1
@@ -54,34 +55,37 @@ Option 2.
    - Explicitly scroll to the bottom and harvest the currently rendered turns and images.
    - This pass is optimized for the freshest messages.
 
-2. **Historical sweep**
-   - Scroll upward through the virtualized container in overlapping windows.
-   - At each scroll position, harvest the rendered turns and visible images.
+2. **DOM-order hydration pass**
+   - Walk the rendered `ms-chat-turn` collection by stable DOM index.
+   - Scroll each target turn into view and harvest a small hydration window around it.
    - Merge all observations into a single turn/image map.
 
 ### Turn harvesting model
 
 - Introduce a reusable page-side collector that reads the currently rendered `ms-chat-turn` nodes.
-- Deduplicate observations by DOM turn id when available, otherwise by a fallback key derived from text and relative position.
+- Deduplicate observations by DOM turn id when available, otherwise by a fallback key derived from stable DOM order.
 - When the same turn is seen multiple times, keep the longest normalized text.
 
 ### Image harvesting model
 
-- While a turn is visible during a sweep step, inspect descendant `img` nodes.
+- While a turn is visible during a hydration step, inspect descendant `img` nodes.
 - Attempt screenshots immediately for needed sources and remember successful saves by source.
-- Continue to attach saved images to turns after the full sweep.
+- Continue to attach saved images to turns after the full pass.
 
 ### Scroll planning
 
-- Add a pure helper that computes sweep positions from scroll metrics.
-- The plan must always include the bottom-most position first, then walk upward with overlap, then optionally include top.
-- This helper will be unit-tested directly.
+- Add pure helpers that keep the capture loop deterministic:
+  - a stable observation key based on DOM id or DOM order fallback,
+  - a clamped hydration window around each target turn,
+  - image/save bookkeeping helpers for repeated hydration steps.
+- Unit-test those helpers directly so regressions are caught without a live browser.
 
 ## Testing Strategy
 
-- Add unit tests for scroll plan generation.
+- Add unit tests for stable fallback keys and hydration window generation.
 - Add unit tests for merging observed turn snapshots so longer text wins and duplicate keys collapse.
 - Keep existing extraction normalization tests.
+- In live capture checks, verify the actual transcript tail ordering and timestamps, not only the aggregate turn count.
 - Run `bun test`, `bun run lint`, and `bun run build`.
 
 ## Non-goals

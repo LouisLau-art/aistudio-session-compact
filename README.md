@@ -13,6 +13,7 @@ CLI tool for exporting very long Google AI Studio sessions, with transcript-firs
 ## Features
 
 - Capture AI Studio session content from an already logged-in Chrome tab via CDP
+- Hydrate long virtualized chats in stable DOM order so transcript tails do not stop early or end out of order
 - Render `transcript.txt` and `transcript.md` as the primary continuation artifacts
 - Extract message text and image references
 - Enrich images with OCR-first strategy (`tesseract`) + optional multimodal summaries (`doubao`)
@@ -236,8 +237,10 @@ If Paddle is unavailable, engine auto-detect falls back to Tesseract.
 ## Notes
 
 - AI Studio DOM can evolve; extractor is selector-heuristic with fallback.
+- Long sessions use a per-turn hydration loop instead of trusting one final DOM snapshot. AI Studio can keep `ms-chat-turn` shells in DOM while blanking off-screen text, so stable DOM order plus a small hydration window is more reliable than sparse virtual scroll anchors alone.
 - Image extraction is best effort; failures are recorded, not fatal.
 - Transcript export is the default continuation path; compaction is the fallback path.
 - Compaction output is now split into stable background/state (`state_snapshot.json`) and recent raw context (`preserved_tail.ndjson`) instead of one overloaded capsule.
 - OCR engine supports `auto|tesseract|paddle`; `paddle` failure auto-falls back to `tesseract`.
 - For very large chats, prefer OCR-first + selective multimodal enhancement for cost control.
+- For long-session acceptance, inspect the last timestamps or tail turns in `transcript.txt` / `session.raw.ndjson`; turn count alone can hide virtualized-tail regressions.

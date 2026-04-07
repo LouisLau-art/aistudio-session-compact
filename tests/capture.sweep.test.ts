@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildHydrationWindow,
   buildImageCapturePath,
   buildObservedTurnKey,
+  buildPromptScrollbarTargetIds,
   buildSweepStep,
   disconnectCdpConnection,
   mergeObservedTurn,
@@ -116,20 +118,20 @@ describe("mergeObservedTurn", () => {
 });
 
 describe("buildObservedTurnKey", () => {
-  it("falls back to absolute top instead of viewport-local index", () => {
+  it("falls back to stable DOM order when a turn has no explicit identifiers", () => {
     expect(
       buildObservedTurnKey({
-        absoluteTop: 2048,
+        orderIndex: 17,
         text: "A captured row",
       }),
-    ).toBe("turn-top-2048");
+    ).toBe("turn-dom-index-17");
   });
 
   it("prefers stable DOM identifiers when available", () => {
     expect(
       buildObservedTurnKey({
         domId: "turn-abc",
-        absoluteTop: 2048,
+        orderIndex: 17,
         text: "A captured row",
       }),
     ).toBe("turn-abc");
@@ -137,16 +139,24 @@ describe("buildObservedTurnKey", () => {
 });
 
 describe("toObservedBrowserTurn", () => {
-  it("uses absolute top as the sort key for id-less rows", () => {
+  it("uses DOM order as the sort key for id-less rows", () => {
     const observed = toObservedBrowserTurn({
-      absoluteTop: 512,
+      orderIndex: 12,
       text: "A captured row",
       images: [],
     });
 
-    expect(observed.observationKey).toBe("turn-top-512");
-    expect(observed.idx).toBe(512);
-    expect(observed.row.domPath).toBe("ms-chat-turn#turn-top-512");
+    expect(observed.observationKey).toBe("turn-dom-index-12");
+    expect(observed.idx).toBe(12);
+    expect(observed.row.domPath).toBe("ms-chat-turn#turn-dom-index-12");
+  });
+});
+
+describe("buildHydrationWindow", () => {
+  it("clamps the hydration window around the target turn", () => {
+    expect(buildHydrationWindow(0, 100, 2)).toEqual({ start: 0, end: 2 });
+    expect(buildHydrationWindow(40, 100, 2)).toEqual({ start: 38, end: 42 });
+    expect(buildHydrationWindow(99, 100, 2)).toEqual({ start: 97, end: 99 });
   });
 });
 
@@ -183,6 +193,20 @@ describe("buildImageCapturePath", () => {
     expect(buildImageCapturePath("/tmp/images", 0, 0)).toBe("/tmp/images/img-00001.png");
     expect(buildImageCapturePath("/tmp/images", 2, 0)).toBe("/tmp/images/img-00003.png");
     expect(buildImageCapturePath("/tmp/images", 2, 1)).toBe("/tmp/images/img-00004.png");
+  });
+});
+
+describe("buildPromptScrollbarTargetIds", () => {
+  it("keeps only stable unique button ids in DOM order", () => {
+    expect(
+      buildPromptScrollbarTargetIds([
+        { id: "scrollbar-item-1" },
+        { id: " " },
+        { id: null },
+        { id: "scrollbar-item-2" },
+        { id: "scrollbar-item-1" },
+      ]),
+    ).toEqual(["scrollbar-item-1", "scrollbar-item-2"]);
   });
 });
 

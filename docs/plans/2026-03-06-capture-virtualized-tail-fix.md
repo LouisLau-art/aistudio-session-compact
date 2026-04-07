@@ -4,9 +4,11 @@
 
 **Goal:** Make `capture` reliably preserve the latest turns in long AI Studio sessions and improve image harvesting under virtualized scrolling.
 
-**Architecture:** Replace the single-snapshot extraction flow with a bottom-first recent pass plus an overlapping historical sweep across scroll positions. Deduplicate turn observations in Node, and collect visible image screenshots during the same sweep so OCR has real local files when possible.
+**Architecture:** Replace the single-snapshot extraction flow with a bottom-first recent pass plus a stable DOM-order hydration loop. Deduplicate turn observations in Node, and collect visible image screenshots during the same hydration steps so OCR has real local files when possible.
 
 **Tech Stack:** TypeScript, Playwright over CDP, Vitest
+
+**Status Note (April 7, 2026):** The landed fix uses per-turn hydration around each `ms-chat-turn` instead of the earlier sparse anchor sweep. Regression coverage now lives in `tests/capture.sweep.test.ts`, and live acceptance should check transcript tail timestamps/order rather than relying only on total turn count.
 
 ---
 

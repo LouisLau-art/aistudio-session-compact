@@ -25,6 +25,10 @@ interface SavedImage {
   localPath: string;
 }
 
+interface PromptScrollbarTarget {
+  id?: string | null;
+}
+
 export interface ExtractTurnsResult {
   rows: BrowserExtractedTurn[];
   savedImages: SavedImage[];
@@ -40,7 +44,7 @@ interface ObservedTurnCandidate {
   domId?: string;
   dataTurnId?: string;
   dataMessageId?: string;
-  absoluteTop: number;
+  orderIndex: number;
   text: string;
   roleHint?: string;
   images: Array<{ src: string; alt?: string }>;
@@ -347,14 +351,15 @@ export function buildObservedTurnKey(candidate: {
   domId?: string;
   dataTurnId?: string;
   dataMessageId?: string;
-  absoluteTop: number;
+  orderIndex: number;
+  absoluteTop?: number;
   text: string;
 }): string {
   return (
     candidate.domId ??
     candidate.dataTurnId ??
     candidate.dataMessageId ??
-    `turn-top-${Math.max(0, Math.round(candidate.absoluteTop))}`
+    `turn-dom-index-${Math.max(0, Math.round(candidate.orderIndex))}`
   );
 }
 
@@ -362,7 +367,7 @@ export function toObservedBrowserTurn(candidate: ObservedTurnCandidate): Observe
   const observationKey = buildObservedTurnKey(candidate);
   return {
     observationKey,
-    idx: Math.max(0, Math.round(candidate.absoluteTop)),
+    idx: Math.max(0, Math.round(candidate.orderIndex)),
     row: {
       text: candidate.text,
       roleHint: candidate.roleHint,
@@ -409,6 +414,31 @@ export function buildImageCapturePath(
   return path.join(imagesDir, `img-${String(existingCount + addedCount + 1).padStart(5, "0")}.png`);
 }
 
+export function buildPromptScrollbarTargetIds(targets: PromptScrollbarTarget[]): string[] {
+  return Array.from(
+    new Set(
+      targets
+        .map((target) => target.id?.trim())
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+}
+
+export function buildHydrationWindow(
+  targetIndex: number,
+  totalTurns: number,
+  radius = 2,
+): { start: number; end: number } {
+  const maxIndex = Math.max(0, totalTurns - 1);
+  const safeTarget = Math.max(0, Math.min(targetIndex, maxIndex));
+  const safeRadius = Math.max(0, radius);
+
+  return {
+    start: Math.max(0, safeTarget - safeRadius),
+    end: Math.min(maxIndex, safeTarget + safeRadius),
+  };
+}
+
 export function pickExtractResult(
   hydrated: ExtractTurnsResult,
   fallbackRows: BrowserExtractedTurn[],
@@ -433,121 +463,12 @@ async function extractTurnsFromChatTurns(
   imagesDir: string,
   maxImageScreenshots: number,
 ): Promise<ExtractTurnsResult> {
-  const scrollerMetric = await page.evaluate(() => {
-    const scroller =
-      document.querySelector<HTMLElement>("ms-autoscroll-container") ??
-      document.querySelector<HTMLElement>(".chat-container") ??
-      null;
-
-    if (!scroller) {
-      return null;
-    }
-
-    return {
-      scrollHeight: scroller.scrollHeight,
-      clientHeight: scroller.clientHeight,
-    };
-  });
-
-  if (!scrollerMetric) {
-    return {
-      rows: [],
-      savedImages: [],
-    };
-  }
-
-  const plan = planVirtualSweep(
-    turnCount,
-    scrollerMetric.scrollHeight,
-    scrollerMetric.clientHeight,
-    "bottom-first",
-  );
+  await scrollChatToBottom(page);
   const byTurnId = new Map<string, ObservedBrowserTurn>();
   const savedImages: SavedImage[] = [];
 
-  for (const anchor of plan.anchors) {
-    const step = buildSweepStep(anchor, turnCount, plan.scanPadding);
-    const didScroll = await page.evaluate(
-      ({ targetAnchor, block }) => {
-        const turns = Array.from(document.querySelectorAll<HTMLElement>("ms-chat-turn"));
-        const target = turns[targetAnchor];
-        if (!target) {
-          return false;
-        }
-
-        target.scrollIntoView({
-          block,
-          inline: "nearest",
-        });
-        return true;
-      },
-      { targetAnchor: anchor, block: step.block },
-    );
-
-    if (!didScroll) {
-      continue;
-    }
-
-    await page.waitForTimeout(30);
-
-    const windowRows = (
-      await page.evaluate(
-      ({ start, end }) => {
-        const turns = Array.from(document.querySelectorAll<HTMLElement>("ms-chat-turn"));
-        const scroller =
-          document.querySelector<HTMLElement>("ms-autoscroll-container") ??
-          document.querySelector<HTMLElement>(".chat-container") ??
-          (document.scrollingElement as HTMLElement | null);
-        const scrollerTop = scroller?.getBoundingClientRect().top ?? 0;
-        const scrollOffset = scroller?.scrollTop ?? window.scrollY;
-        const rows: ObservedTurnCandidate[] = [];
-
-        for (let idx = start; idx <= end; idx += 1) {
-          const el = turns[idx];
-          if (!el) {
-            continue;
-          }
-
-          const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-          if (text.length < 20) {
-            continue;
-          }
-
-          const containerClass =
-            (el.querySelector(".chat-turn-container") as HTMLElement | null)?.className ?? "";
-          const roleHint =
-            containerClass ||
-            el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
-            el.getAttribute("id") ||
-            undefined;
-
-          const images = Array.from(el.querySelectorAll("img"))
-            .map((img) => ({
-              src: img.getAttribute("src") ?? "",
-              alt: img.getAttribute("alt") ?? undefined,
-            }))
-            .filter((img) => img.src);
-
-          const rect = el.getBoundingClientRect();
-          const absoluteTop = Math.round(rect.top - scrollerTop + scrollOffset);
-          rows.push({
-            domId: el.getAttribute("id") ?? undefined,
-            dataTurnId: el.getAttribute("data-turn-id") ?? undefined,
-            dataMessageId: el.getAttribute("data-message-id") ?? undefined,
-            absoluteTop,
-            text,
-            roleHint,
-            images,
-          });
-        }
-
-        return rows;
-      },
-      { start: step.start, end: step.end },
-    )
-    ).map(toObservedBrowserTurn);
-
-    for (const row of windowRows) {
+  const mergeRows = async (rows: ObservedBrowserTurn[]) => {
+    for (const row of rows) {
       const previous = byTurnId.get(row.observationKey);
       byTurnId.set(row.observationKey, mergeObservedTurn(previous, row));
     }
@@ -566,6 +487,36 @@ async function extractTurnsFromChatTurns(
         savedImages.push(...stepSaved);
       }
     }
+  };
+
+  for (let targetIndex = 0; targetIndex < turnCount; targetIndex += 1) {
+    const didScroll = await page.evaluate(
+      (targetIndex) => {
+        const turns = Array.from(document.querySelectorAll<HTMLElement>("ms-chat-turn"));
+        const target = turns[targetIndex];
+        if (!target) {
+          return false;
+        }
+
+        target.scrollIntoView({
+          block: "center",
+          inline: "nearest",
+        });
+        return true;
+      },
+      targetIndex,
+    );
+
+    if (!didScroll) {
+      continue;
+    }
+
+    await page.waitForTimeout(35);
+    const window = buildHydrationWindow(targetIndex, turnCount, 2);
+
+    await mergeRows(
+      (await extractObservedTurns(page, window)).map(toObservedBrowserTurn),
+    );
   }
 
   const minExpected = Math.max(3, Math.min(20, Math.floor(turnCount * 0.02)));
@@ -582,6 +533,79 @@ async function extractTurnsFromChatTurns(
       .map((item) => item.row),
     savedImages,
   };
+}
+
+async function scrollChatToBottom(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const scroller =
+      document.querySelector<HTMLElement>("ms-autoscroll-container") ??
+      document.querySelector<HTMLElement>(".chat-container") ??
+      (document.scrollingElement as HTMLElement | null);
+
+    if (scroller && scroller.scrollHeight > scroller.clientHeight + 50) {
+      scroller.scrollTop = scroller.scrollHeight;
+    }
+
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+  await page.waitForTimeout(50);
+}
+
+async function extractObservedTurns(
+  page: Page,
+  range?: { start: number; end: number },
+): Promise<ObservedTurnCandidate[]> {
+  return page.evaluate(
+    ({ start, end }) => {
+      const turns = Array.from(document.querySelectorAll<HTMLElement>("ms-chat-turn"));
+      const rows: ObservedTurnCandidate[] = [];
+      const startIdx = start ?? 0;
+      const endIdx = end ?? turns.length - 1;
+
+      for (let idx = startIdx; idx <= endIdx; idx += 1) {
+        const el = turns[idx];
+        if (!el) {
+          continue;
+        }
+
+        const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (text.length < 20) {
+          continue;
+        }
+
+        const containerClass =
+          (el.querySelector(".chat-turn-container") as HTMLElement | null)?.className ?? "";
+        const roleHint =
+          containerClass ||
+          el.querySelector("[aria-label]")?.getAttribute("aria-label") ||
+          el.getAttribute("id") ||
+          undefined;
+
+        const images = Array.from(el.querySelectorAll("img"))
+          .map((img) => ({
+            src: img.getAttribute("src") ?? "",
+            alt: img.getAttribute("alt") ?? undefined,
+          }))
+          .filter((img) => img.src);
+
+        rows.push({
+          domId: el.getAttribute("id") ?? undefined,
+          dataTurnId: el.getAttribute("data-turn-id") ?? undefined,
+          dataMessageId: el.getAttribute("data-message-id") ?? undefined,
+          orderIndex: idx,
+          text,
+          roleHint,
+          images,
+        });
+      }
+
+      return rows;
+    },
+    {
+      start: range?.start ?? null,
+      end: range?.end ?? null,
+    },
+  );
 }
 
 function collectPendingImageSrcs(

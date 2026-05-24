@@ -2,7 +2,15 @@ node_modules/
 dist/
 out/
 .venv-ocr*/
+.venv/
 .env
 .DS_Store
 *.log
 coverage/
+__pycache__/
+.pytest_cache/
+
+# Local/private memory and handoff artifacts.
+/memory/
+.claude/handoffs/
+memory-system/.claude/handoffs/

@@ -22,8 +22,8 @@ describe("runCompress v2", () => {
             emotionalContext: ["pain"],
             workingFrames: ["NPD"],
           },
-          peopleMap: [{ name: "何引", relation: "Central person in the story" }],
-          stableFacts: ["The user met 何引 on 2026-01-14."],
+          peopleMap: [{ name: "小雅", relation: "Central person in the story" }],
+          stableFacts: ["The user met 小雅 on 2026-01-14."],
           timelineAnchors: ["2026-01-14: first meeting"],
         },
         null,
@@ -60,7 +60,7 @@ describe("runCompress v2", () => {
 
     expect(snapshot.version).toBe(2);
     expect(snapshot.briefing.applied).toBe(true);
-    expect(snapshot.stableFacts).toContain("The user met 何引 on 2026-01-14.");
+    expect(snapshot.stableFacts).toContain("The user met 小雅 on 2026-01-14.");
 
     expect(tail.length).toBeGreaterThan(0);
 

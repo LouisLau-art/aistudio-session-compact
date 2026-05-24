@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tsx src/cli.ts",
     "cdp:start": "bash scripts/start-cdp-browser.sh",
+    "export:url": "bash scripts/export-url-from-browser.sh",
     "pipeline:headless": "bash scripts/run-headless-pipeline.sh",
     "transcript:headless": "bash scripts/run-headless-transcript-export.sh",
     "build": "tsc -p tsconfig.build.json",
@@ -16,6 +17,8 @@
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "chromadb": "^3.4.3",
     "commander": "^13.1.0",
     "playwright": "^1.52.0",
     "zod": "^3.24.1"

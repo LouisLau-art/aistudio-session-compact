@@ -228,7 +228,6 @@ function withQuestionMark(text: string): string {
 
 function stripTurnPrefix(text: string): string {
   return text
-    .replace(/^(?:Louis|刘新宇（Louis）|新宇（Louis）)[，,\s]*/i, "")
     .replace(/^(?:User|Model)\s+\d{1,2}:\d{2}\s*(?:AM|PM)\s*/i, "")
     .replace(/^(?:用户|模型)\s+\d{1,2}:\d{2}\s*/i, "")
     .trim();
@@ -367,11 +366,11 @@ function normalizeInferredStance(text: string): string {
   const normalized = withSentencePeriod(stripTrailingPunctuation(text));
 
   if (normalized.includes("侦探游戏")) {
-    return "避免通过试探性社交动作重新接近何引。";
+    return "避免通过试探性社交动作重新接近对方。";
   }
 
   if (normalized.includes("万一") && normalized.includes("病毒链接")) {
-    return "避免因为“万一”的侥幸心理重新接触何引。";
+    return "避免因为“万一”的侥幸心理重新接触对方。";
   }
 
   if (normalized.includes("不能按你那个方案回复")) {

@@ -39,12 +39,12 @@ describe("buildStateSnapshot", () => {
         },
         peopleMap: [
           {
-            name: "何引",
+            name: "小雅",
             relation: "Central person in the story",
             notes: "The user frames her through a narcissism lens.",
           },
         ],
-        stableFacts: ["The user met 何引 on 2026-01-14."],
+        stableFacts: ["The user met 小雅 on 2026-01-14."],
         timelineAnchors: ["2026-01-14: first meeting"],
       },
     });
@@ -52,8 +52,8 @@ describe("buildStateSnapshot", () => {
     expect(snapshot.version).toBe(2);
     expect(snapshot.background.summary).toContain("long-running relationship analysis");
     expect(snapshot.background.workingFrames).toEqual(expect.arrayContaining(["NPD", "Lacan"]));
-    expect(snapshot.peopleMap.map((person) => person.name)).toContain("何引");
-    expect(snapshot.stableFacts).toContain("The user met 何引 on 2026-01-14.");
+    expect(snapshot.peopleMap.map((person) => person.name)).toContain("小雅");
+    expect(snapshot.stableFacts).toContain("The user met 小雅 on 2026-01-14.");
     expect(snapshot.timelineAnchors).toContain("2026-01-14: first meeting");
 
     expect(snapshot.currentState.currentObjectives).toContain("reduce contact and continue recovery.");
@@ -93,7 +93,7 @@ describe("buildStateSnapshot", () => {
 
   it("prefers concise recent user questions over long narrative question dumps", () => {
     const longNarrativeQuestion =
-      "我现在还是会反复想起何引，想到我们之前的肢体接触、表白被拒、博士哥、室友、球友、图书馆、围巾和各种细节，我到底是不是还可以继续和她接触、继续研究她、继续玩推拉、继续约她打球、继续保持若即若离的关系，哪怕只是为了社会学观察呢？";
+      "我现在还是会反复想起某个旧关系，想到我们之前的互动、被拒绝、朋友、球友和各种细节，我到底是不是还可以继续和她接触、继续研究她、继续保持若即若离的关系，哪怕只是为了社会学观察呢？";
 
     const turns: SessionTurn[] = [
       makeTurn(1, "user", longNarrativeQuestion),
@@ -153,7 +153,7 @@ describe("buildStateSnapshot", () => {
 
   it("normalizes emotionally loaded inferred state into more neutral guidance", () => {
     const turns: SessionTurn[] = [
-      makeTurn(1, "user", "我要去约何引"),
+      makeTurn(1, "user", "我要去约小雅"),
       makeTurn(2, "model", "不要去玩这种低劣的侦探游戏！"),
       makeTurn(3, "model", "就按我们之前说好的，最简单、最物理的拒绝： “6 个人刚好轮换，再多体验就不好了。”"),
     ];
@@ -166,8 +166,8 @@ describe("buildStateSnapshot", () => {
       mode: "heuristic",
     });
 
-    expect(snapshot.currentState.currentObjectives).toContain("决定是否再次联系何引");
-    expect(snapshot.currentState.currentStance).toContain("避免通过试探性社交动作重新接近何引。");
+    expect(snapshot.currentState.currentObjectives).toContain("决定是否再次联系小雅");
+    expect(snapshot.currentState.currentStance).toContain("避免通过试探性社交动作重新接近对方。");
     expect(snapshot.currentState.nextActions).toContain("用人数刚好的理由直接拒绝额外加人。");
   });
 });

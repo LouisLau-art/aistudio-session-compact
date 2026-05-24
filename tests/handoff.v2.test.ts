@@ -36,12 +36,12 @@ describe("runHandoff v2", () => {
       },
       peopleMap: [
         {
-          name: "何引",
+          name: "小雅",
           relation: "Central person in the story",
           notes: "The user frames her through a narcissism lens.",
         },
       ],
-      stableFacts: ["The user met 何引 on 2026-01-14."],
+      stableFacts: ["The user met 小雅 on 2026-01-14."],
       timelineAnchors: ["2026-01-14: first meeting"],
       currentState: {
         summary: "The user currently wants to reduce contact and decide whether to disengage completely.",
@@ -96,7 +96,7 @@ describe("runHandoff v2", () => {
     expect(resumePrompt).toContain("## Current State");
     expect(resumePrompt).toContain("Reduce contact and continue recovery.");
     expect(resumePrompt).toContain("## Stable Background");
-    expect(resumePrompt).toContain("The user met 何引 on 2026-01-14.");
+    expect(resumePrompt).toContain("The user met 小雅 on 2026-01-14.");
     expect(resumePrompt).toContain("## Preserved Recent Turns");
     expect(resumePrompt).toContain("[5] USER t-000005");
     expect(resumePrompt).toContain("[6] MODEL t-000006");

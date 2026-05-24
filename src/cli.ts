@@ -6,10 +6,18 @@ import { runCapture } from "./commands/capture.js";
 import { runCompress } from "./commands/compress.js";
 import type { VisionProvider } from "./commands/enrichImages.js";
 import { runEnrichImages } from "./commands/enrichImages.js";
+import { runExportChatgpt } from "./commands/exportChatgpt.js";
+import { runExportGemini } from "./commands/exportGemini.js";
 import { runExportTranscript } from "./commands/exportTranscript.js";
+import { runExportUrl } from "./commands/exportUrl.js";
 import { runHandoff } from "./commands/handoff.js";
 import { runPipeline } from "./commands/pipeline.js";
 import { runTranscript } from "./commands/transcript.js";
+import { memoryBuildCommand } from "./commands/memory-build.js";
+import { memoryDoctorCommand } from "./commands/memory-doctor.js";
+import { memoryEvalCommand } from "./commands/memory-eval.js";
+import { memoryPromptCommand } from "./commands/memory-prompt.js";
+import { memoryQueryCommand } from "./commands/memory-query.js";
 import type { OcrEngine } from "./lib/ocr.js";
 
 const program = new Command();
@@ -240,6 +248,112 @@ program
     console.log(`Transcript markdown: ${result.transcriptMdPath}`);
     console.log(`Report: ${result.reportPath}`);
   });
+
+program
+  .command("export-chatgpt")
+  .description("Export current ChatGPT conversation from Chrome CDP tab")
+  .option("--cdp-url <url>", "Chrome CDP endpoint", "http://127.0.0.1:9222")
+  .option("--url-match <text>", "URL match for target tab", "chatgpt.com/c/")
+  .option("--tab-index <n>", "Pick a tab index explicitly", parseOptionalInt)
+  .option("--conversation-url <url>", "ChatGPT conversation URL, e.g. https://chatgpt.com/c/<id>")
+  .option("--conversation-id <id>", "ChatGPT conversation id")
+  .option("--out <dir>", "Output directory", "./out")
+  .action(async (opts) => {
+    const result = await runExportChatgpt({
+      outDir: path.resolve(opts.out),
+      cdpUrl: opts.cdpUrl,
+      urlMatch: opts.urlMatch,
+      tabIndex: opts.tabIndex,
+      conversationUrl: opts.conversationUrl,
+      conversationId: opts.conversationId,
+    });
+
+    console.log(`Transcript text: ${result.transcriptTxtPath}`);
+    console.log(`Transcript markdown: ${result.transcriptMdPath}`);
+    console.log(`Raw: ${result.rawPath}`);
+    console.log(`Report: ${result.reportPath}`);
+  });
+
+program
+  .command("export-gemini")
+  .description("Export current Gemini conversation from Chrome CDP tab")
+  .option("--cdp-url <url>", "Chrome CDP endpoint", "http://127.0.0.1:9222")
+  .option("--url-match <text>", "URL match for target tab", "gemini.google.com/app/")
+  .option("--tab-index <n>", "Pick a tab index explicitly", parseOptionalInt)
+  .option("--conversation-url <url>", "Gemini conversation URL, e.g. https://gemini.google.com/app/<id>")
+  .option("--conversation-id <id>", "Gemini conversation id")
+  .option("--out <dir>", "Output directory", "./out")
+  .action(async (opts) => {
+    const result = await runExportGemini({
+      outDir: path.resolve(opts.out),
+      cdpUrl: opts.cdpUrl,
+      urlMatch: opts.urlMatch,
+      tabIndex: opts.tabIndex,
+      conversationUrl: opts.conversationUrl,
+      conversationId: opts.conversationId,
+    });
+
+    console.log(`Transcript text: ${result.transcriptTxtPath}`);
+    console.log(`Transcript markdown: ${result.transcriptMdPath}`);
+    console.log(`Raw: ${result.rawPath}`);
+    console.log(`Report: ${result.reportPath}`);
+  });
+
+program
+  .command("export-url")
+  .description("Auto-export an AI Studio, ChatGPT, or Gemini URL")
+  .argument("<url>", "Conversation URL to export")
+  .option("--cdp-url <url>", "Chrome CDP endpoint", "http://127.0.0.1:9222")
+  .option("--tab-index <n>", "Pick a tab index explicitly", parseOptionalInt)
+  .option("--out <dir>", "Output directory; defaults to out/<provider>-<id>-<date>")
+  .option("--provider <name>", "AI Studio vision provider: auto|doubao|none", parseVisionProvider, "none")
+  .option("--ocr-engine <name>", "AI Studio OCR engine: auto|tesseract|paddle", parseOcrEngine, "auto")
+  .option("--model <model>", "Vision model id", process.env.VISION_MODEL ?? "vision-model")
+  .option("--disable-ocr", "Disable local Tesseract OCR", false)
+  .option("--ocr-lang <lang>", "Tesseract OCR language", process.env.OCR_LANG ?? "eng+chi_sim")
+  .option("--python-bin <path>", "Python binary for PaddleOCR sidecar", process.env.OCR_PYTHON_BIN ?? "python3")
+  .option("--doubao-api-key <key>", "Doubao API key")
+  .option("--doubao-base-url <url>", "Doubao/OpenAI-compatible base URL", process.env.DOUBAO_BASE_URL)
+  .option("--with-images", "Run OCR/image enrichment for AI Studio before transcript export", false)
+  .option("--max-scroll-iterations <n>", "AI Studio max loading loops", parseIntValue, 220)
+  .option("--stable-rounds <n>", "AI Studio stop after N stable rounds", parseIntValue, 6)
+  .option("--scroll-wait-ms <n>", "AI Studio wait time per loop (ms)", parseIntValue, 900)
+  .option("--max-image-screenshots <n>", "AI Studio cap local image screenshots", parseIntValue, 80)
+  .option("--no-strict-capture", "Allow AI Studio capture output even when quality gate fails")
+  .action(async (url, opts) => {
+    const result = await runExportUrl({
+      url,
+      outDir: opts.out ? path.resolve(opts.out) : undefined,
+      cdpUrl: opts.cdpUrl,
+      tabIndex: opts.tabIndex,
+      strictCapture: opts.strictCapture,
+      model: opts.model,
+      provider: opts.provider,
+      ocrEngine: opts.ocrEngine,
+      enableOcr: !opts.disableOcr,
+      ocrLang: opts.ocrLang,
+      pythonBin: opts.pythonBin,
+      doubaoApiKey: opts.doubaoApiKey,
+      doubaoBaseUrl: opts.doubaoBaseUrl,
+      withImages: opts.withImages,
+      maxScrollIterations: opts.maxScrollIterations,
+      stableRounds: opts.stableRounds,
+      scrollWaitMs: opts.scrollWaitMs,
+      maxImageScreenshots: opts.maxImageScreenshots,
+    });
+
+    console.log(`Provider: ${result.provider}`);
+    console.log(`Transcript text: ${result.transcriptTxtPath}`);
+    console.log(`Transcript markdown: ${result.transcriptMdPath}`);
+    console.log(`Raw: ${result.rawPath}`);
+    console.log(`Report: ${result.reportPath}`);
+  });
+
+program.addCommand(memoryBuildCommand);
+program.addCommand(memoryDoctorCommand);
+program.addCommand(memoryEvalCommand);
+program.addCommand(memoryQueryCommand);
+program.addCommand(memoryPromptCommand);
 
 program.parseAsync(process.argv).catch((error) => {
   const message = error instanceof Error ? error.message : String(error);

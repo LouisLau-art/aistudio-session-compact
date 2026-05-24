@@ -1,0 +1,18 @@
+[
+  {
+    "id": "sample-date-specific-event",
+    "query": "5月12日的活动具体是什么？",
+    "must_include": ["5月12", "模拟接力赛"],
+    "must_not_include": ["Aurora"],
+    "source_keywords": ["路线规划", "计时复盘"],
+    "require_exact_hit": true
+  },
+  {
+    "id": "sample-noisy-query-still-finds-date",
+    "query": "演示项目 Aurora 5月12 一轮游 活动",
+    "must_include_any": [["5月12", "5.12"]],
+    "must_not_include": ["Aurora"],
+    "source_keywords": ["模拟接力赛"],
+    "require_exact_hit": true
+  }
+]

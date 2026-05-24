@@ -9,6 +9,7 @@ endpoint="http://${host}:${port}/json/version"
 profile_dir="${CDP_USER_DATA_DIR:-$HOME/.config/aistudio-cdp-profile}"
 log_file="${CDP_LOG_FILE:-/tmp/aistudio-cdp.log}"
 headless="${CDP_HEADLESS:-0}"
+proxy_server="${CDP_PROXY_SERVER:-}"
 
 pick_browser() {
   case "${browser}" in
@@ -67,6 +68,9 @@ echo "Log: ${log_file}"
 if [[ -n "${open_url}" ]]; then
   echo "Open URL: ${open_url}"
 fi
+if [[ -n "${proxy_server}" ]]; then
+  echo "Proxy: ${proxy_server}"
+fi
 
 launch_args=(
   --remote-debugging-port="${port}"
@@ -74,6 +78,10 @@ launch_args=(
   --no-first-run
   --no-default-browser-check
 )
+
+if [[ -n "${proxy_server}" ]]; then
+  launch_args+=(--proxy-server="${proxy_server}")
+fi
 
 if [[ "${headless}" == "1" ]]; then
   launch_args+=(--headless=new --disable-gpu)

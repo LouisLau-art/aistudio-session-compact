@@ -5,6 +5,14 @@ target_url="${1:-${AISTUDIO_URL:-}}"
 if [[ "${target_url}" == "-h" || "${target_url}" == "--help" ]]; then
   echo "Usage: bash scripts/run-headless-transcript-export.sh <aistudio-session-url> [extra export args]"
   echo "Example: bun run transcript:headless -- \"https://aistudio.google.com/prompts/<id>\""
+  echo
+  echo "Environment variables:"
+  echo "  CDP_BROWSER: Browser to use (chromium, chrome, unstable) - default: chromium"
+  echo "  CDP_PORT: CDP port - default: 9222"
+  echo "  CDP_USER_DATA_DIR: Browser profile directory - default: ~/.config/chromium"
+  echo "  OUT_DIR: Output directory - default: ./out"
+  echo "  WITH_IMAGES: Enable image OCR/enrichment - default: 0"
+  echo "  STRICT_CAPTURE: Enable strict capture quality gate - default: 1"
   exit 0
 fi
 
@@ -21,6 +29,7 @@ cd "${repo_root}"
 
 cdp_port="${CDP_PORT:-9222}"
 cdp_url="http://127.0.0.1:${cdp_port}"
+browser="${CDP_BROWSER:-chromium}"
 profile_dir="${CDP_USER_DATA_DIR:-$HOME/.config/chromium}"
 out_dir="${OUT_DIR:-./out}"
 provider="${VISION_PROVIDER:-none}"
@@ -36,7 +45,7 @@ session_id="${session_id%%\?*}"
 url_match="${URL_MATCH:-aistudio.google.com/prompts/${session_id}}"
 
 CDP_HEADLESS=1 CDP_USER_DATA_DIR="${profile_dir}" \
-  bash scripts/start-cdp-browser.sh chromium "${cdp_port}" "${target_url}"
+  bash scripts/start-cdp-browser.sh "${browser}" "${cdp_port}" "${target_url}"
 
 set +e
 cmd=(

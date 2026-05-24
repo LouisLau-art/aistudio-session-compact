@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": "if [[ $LAST_TOOL_OUTPUT == *'Successfully modified'* && ($LAST_TOOL_FILE == *.ts || $LAST_TOOL_FILE == *.py) ]]; then echo 'Checking types...'; bun run lint; fi",
+    "PreToolUse": "if [[ $LAST_TOOL_FILE == *.env || $LAST_TOOL_FILE == *lock || $LAST_TOOL_FILE == out/* || $LAST_TOOL_FILE == */out/* || $LAST_TOOL_FILE == memory/* || $LAST_TOOL_FILE == */memory/* || $LAST_TOOL_FILE == .claude/handoffs/* || $LAST_TOOL_FILE == */.claude/handoffs/* || $LAST_TOOL_FILE == memory-system/.claude/handoffs/* || $LAST_TOOL_FILE == */memory-system/.claude/handoffs/* ]]; then echo 'Warning: Protecting sensitive/local-only files. Do not print secrets or commit private artifacts.'; fi"
+  },
+  "permissions": {
+    "allow": [
+      "Edit",
+      "Write",
+      "Bash(bun run lint)",
+      "Bash(pkill -f google-chrome-unstable)",
+      "Bash(rm -f *)",
+      "Bash(find *)"
+    ]
+  }
+}
